@@ -25,7 +25,11 @@ jobs:
           wget -O deb-package.deb "$DEB_LINK"
 
       - name: Install DEB Package
-        run: sudo dpkg -i deb-package.deb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-11-jre
+          sudo apt-get install -y default-jre
+          sudo dpkg -i deb-package.deb
 
       - name: Build with Maven
         run: mvn -B package --file pom.xml
