@@ -10,20 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up JDK 11
-      uses: actions/setup-java@v2
-      with:
-        distribution: 'adopt'
-        java-version: '11'
+      - name: Set up JDK 11
+        uses: actions/setup-java@v2
+        with:
+          distribution: "adopt"
+          java-version: "11"
 
-    - name: Build with Maven
-      run: mvn -B package --file pom.xml
+      - name: Download DEB Package
+        run: |
+          DEB_LINK="https://sourceforge.net/projects/tvbrowser/files/TV-Browser%20Releases%20%28Java%2011%20and%20higher%29/4.2.7/tvbrowser_4.2.7-1_all.deb/download"
+          wget -O deb-package.deb "$DEB_LINK"
 
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./target  # Hier wird das target-Verzeichnis als Verzeichnis für das Deployment angegeben
+      - name: Install DEB Package
+        run: sudo dpkg -i deb-package.deb
+
+      - name: Build with Maven
+        run: mvn -B package --file pom.xml
+
+      - name: Clean Up
+        run: rm deb-package.deb
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target # Hier wird das target-Verzeichnis als Verzeichnis für das Deployment angegeben
