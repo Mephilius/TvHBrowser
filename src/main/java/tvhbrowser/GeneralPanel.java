@@ -22,6 +22,10 @@ public class GeneralPanel {
         loadSettings();
     }
 
+    public void onClose() {
+        tvhBrowser.testTVHConnection();
+    }
+
     private void initComponents() {
         panel = new JPanel(new BorderLayout());
 

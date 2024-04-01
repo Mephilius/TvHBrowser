@@ -22,9 +22,66 @@ import com.google.gson.reflect.TypeToken;
 
 public class TVHeadendConnection {
     private final TvHBrowser tvhBrowser;
+    private boolean connected;
 
     public TVHeadendConnection(TvHBrowser tvhBrowser) {
         this.tvhBrowser = tvhBrowser;
+    }
+
+    public boolean isConnected() {
+        return connected;
+    }
+
+    public boolean testConnection() {
+        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
+        int port = tvhBrowser.getSetting("port", 9981);
+        int timeout = tvhBrowser.getSetting("timeout", 500);
+        String username = tvhBrowser.getSetting("username", "");
+        String password = tvhBrowser.getSetting("password", "");
+        boolean useHttps = tvhBrowser.getSetting("https", false);
+
+        String protocol = useHttps ? "https://" : "http://";
+        String urlString = protocol + fqdn + ":" + port + "/api/serverinfo";
+
+        try {
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(timeout);
+
+            String authString = username + ":" + password;
+            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
+            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+
+                reader.close();
+
+                JSONObject jsonObject = new JSONObject(response.toString());
+                String version = jsonObject.getString("version");
+                tvhBrowser.writeLog("Connected to TVHeadend version " + version);
+                connected = true;
+                return true;
+            } else {
+                showError("Calling " + urlString + " - HTTP error " + responseCode);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            showError(urlString + ": " + e.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+            showError(urlString + ": " + e.toString());
+        }
+
+        connected = false;
+        return false;
     }
 
     private JSONArray makeHttpRequest(String urlString, String username, String password, int timeout) {

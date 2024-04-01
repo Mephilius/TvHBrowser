@@ -1,10 +1,9 @@
 
-
 /**
  * The `TvHBrowser` class is a plugin that exports program schedules from TV-Browser to Tvheadend.
  * It provides functionality for configuring settings, managing timers, and interacting with Tvheadend.
  * 
- * This plugin is developed by Markus Muerling (markus@muerling.de) and is licensed under AGPL-3.0.
+ * This plugin is developed by Markus Muerling (mephilius@muerling.de) and is licensed under AGPL-3.0.
  * For more information, visit the project website: https://muerling.de/TvHBrowser
  * 
  * @author Markus Muerling
@@ -32,11 +31,15 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 /**
- * The `TvHBrowser` class is a plugin that exports program schedules from TV-Browser to Tvheadend.
- * It provides functionality for configuring settings, managing timers, and interacting with Tvheadend.
+ * The `TvHBrowser` class is a plugin that exports program schedules from
+ * TV-Browser to Tvheadend.
+ * It provides functionality for configuring settings, managing timers, and
+ * interacting with Tvheadend.
  * 
- * This plugin is developed by Markus Muerling (markus@muerling.de) and is licensed under AGPL-3.0.
- * For more information, visit the project website: https://muerling.de/TvHBrowser
+ * This plugin is developed by Markus Muerling (mephilius@muerling.de) and is
+ * licensed under AGPL-3.0.
+ * For more information, visit the project website:
+ * https://muerling.de/TvHBrowser
  */
 public final class TvHBrowser extends Plugin {
 
@@ -44,7 +47,7 @@ public final class TvHBrowser extends Plugin {
     private final static PluginInfo INFO = new PluginInfo(TvHBrowser.class,
             "TVHBrowser",
             "Exports program schedules from TV-Browser to Tvheadend",
-            "Markus Muerling (markus@muerling.de)",
+            "Markus Muerling (mephilius@muerling.de)",
             "AGPL-3.0",
             "https://muerling.de/TvHBrowser");
     private final TvHBSettingsPanel settingsPanel;
@@ -69,16 +72,15 @@ public final class TvHBrowser extends Plugin {
 
     public TvHBrowser() {
         settings = new Properties();
-        
 
         this.tvHeadendConnection = new TVHeadendConnection(this);
-        
+
         this.channelManager = new ChannelManager(this, tvHeadendConnection);
         this.epgManager = new EpgManager(this, tvHeadendConnection, channelManager);
-        this.timerManager = new TimerManager(this, tvHeadendConnection, channelManager,epgManager);
+        this.timerManager = new TimerManager(this, tvHeadendConnection, channelManager, epgManager);
         this.settingsPanel = new TvHBSettingsPanel(this, timerManager, channelManager);
-       
-        this.cmf = new ContextMenuFactory(this, channelManager,timerManager);
+
+        this.cmf = new ContextMenuFactory(this, channelManager, timerManager);
 
         this.timerTask = new TVHTimerTask(this);
     }
@@ -97,7 +99,6 @@ public final class TvHBrowser extends Plugin {
         return INFO;
     }
 
-
     @Override
     public ActionMenu getContextMenuActions(final Program program) {
         return cmf.createActionMenu(program);
@@ -105,10 +106,8 @@ public final class TvHBrowser extends Plugin {
 
     // @Override
     // public ActionMenu getContextMenuActions(final devplugin.Channel channel) {
-    //     return cmf.createChannelActionMenu(channel);
+    // return cmf.createChannelActionMenu(channel);
     // }
-
-
 
     @Override
     public final String getPluginCategory() {
@@ -225,13 +224,13 @@ public final class TvHBrowser extends Plugin {
     @Override
     public void readData(ObjectInputStream in) throws IOException {
         channelManager.readData(in);
-        timerManager.readData(in);
+        // timerManager.readData(in);
     }
 
     @Override
     public void writeData(ObjectOutputStream out) throws IOException {
         channelManager.writeData(out);
-        timerManager.writeData(out);
+        // timerManager.writeData(out);
     }
 
     @Override
@@ -266,16 +265,26 @@ public final class TvHBrowser extends Plugin {
     public void handleTvBrowserStartFinished() {
         timerManager.loadTimer();
         timerManager.mapTimerToProgram();
-        
+
         epgManager.loadEpgList();
         timerTask.startThread();
     }
 
-    public void updateTimer() {
-        if (Thread.currentThread().getId() == mainThreadId) {
-            timerManager.updateTimer();
+    public void testTVHConnection() {
+        if (tvHeadendConnection.testConnection()) {
+            writeLog("Connection to Tvheadend successful");
         } else {
-            SwingUtilities.invokeLater(() -> timerManager.updateTimer());
+            showError("Connection to Tvheadend failed");
+        }
+    }
+
+    public void updateTimer() {
+        if (tvHeadendConnection.isConnected()) {
+            if (Thread.currentThread().getId() == mainThreadId) {
+                timerManager.updateTimer();
+            } else {
+                SwingUtilities.invokeLater(() -> timerManager.updateTimer());
+            }
         }
     }
 
@@ -300,7 +309,8 @@ public final class TvHBrowser extends Plugin {
     public void writeLog(String log) {
         try {
             String currentTime = new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
-            Files.writeString(Paths.get("C:\\Temp\\tvhbrowser.log"), currentTime + " - " + log + "\n",java.nio.file.StandardOpenOption.APPEND, java.nio.file.StandardOpenOption.CREATE);
+            Files.writeString(Paths.get("C:\\Temp\\tvhbrowser.log"), currentTime + " - " + log + "\n",
+                    java.nio.file.StandardOpenOption.APPEND, java.nio.file.StandardOpenOption.CREATE);
         } catch (IOException e) {
             e.printStackTrace();
         }

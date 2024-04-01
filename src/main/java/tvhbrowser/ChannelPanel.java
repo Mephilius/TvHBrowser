@@ -31,12 +31,14 @@ public class ChannelPanel {
         this.panel = new JPanel(new BorderLayout());
 
         initializeTables();
-        initializeFilterTextField();
         initializeButtons();
-        fillLeftTable();
         initializeRowColorRenderers();
+        fillLeftTable();
         initializeRightTable();
+        sortTables();
     }
+
+
 
     private void initializeTables() {
         // Initialize left table
@@ -52,70 +54,18 @@ public class ChannelPanel {
         JScrollPane rightScrollPane = new JScrollPane(rightTable);
         rightScrollPane.setPreferredSize(new Dimension(400, 300));
         panel.add(rightScrollPane, BorderLayout.CENTER);
+
+
     }
 
-    private void initializeFilterTextField() {
-        // Initialize filter text fields
-        JTextField leftFilterTextField = new JTextField();
-        leftFilterTextField.setPreferredSize(new Dimension(leftTable.getPreferredSize().width, 25));
-        leftFilterTextField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                filterLeftTable(e);
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                filterLeftTable(e);
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                filterLeftTable(e);
-            }
-        });
-        panel.add(leftFilterTextField, BorderLayout.NORTH);
-
-        JTextField rightFilterTextField = new JTextField();
-        rightFilterTextField.setPreferredSize(new Dimension(rightTable.getPreferredSize().width, 25));
-        rightFilterTextField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                filterRightTable(e);
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                filterRightTable(e);
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                filterRightTable(e);
-            }
-
-        });
-        panel.add(rightFilterTextField, BorderLayout.SOUTH);
-    }
-
-    protected void filterLeftTable(DocumentEvent e) {
-        try {
-            String text = e.getDocument().getText(0, e.getDocument().getLength());
-            TableRowSorter<DefaultTableModel> sorter = (TableRowSorter<DefaultTableModel>) leftTable.getRowSorter();
-            sorter.setRowFilter(RowFilter.regexFilter(text));
-        } catch (PatternSyntaxException | BadLocationException ex) {
-            ex.printStackTrace();
-        }
-    }
-
-    protected void filterRightTable(DocumentEvent e) {
-        try {
-            String text = e.getDocument().getText(0, e.getDocument().getLength());
-            TableRowSorter<DefaultTableModel> sorter = (TableRowSorter<DefaultTableModel>) rightTable.getRowSorter();
-            sorter.setRowFilter(RowFilter.regexFilter(text));
-        } catch (PatternSyntaxException | BadLocationException ex) {
-            ex.printStackTrace();
-        }
+    private void sortTables()
+    {
+        TableRowSorter<DefaultTableModel> leftSorter = new TableRowSorter<DefaultTableModel>((DefaultTableModel) leftTable.getModel());
+        leftSorter.setSortable(0, true);
+        leftTable.setRowSorter(leftSorter);
+        TableRowSorter<DefaultTableModel> rightSorter = new TableRowSorter<DefaultTableModel>((DefaultTableModel) rightTable.getModel());
+        rightSorter.setSortable(0, true);
+        rightTable.setRowSorter(rightSorter);
     }
 
     private void initializeButtons() {
@@ -204,7 +154,9 @@ public class ChannelPanel {
                 rightTableModel.addRow(new Object[] { channel.getDefaultName(), "" });
             }
         }
+        
         rightTable.setModel(rightTableModel);
+
     }
 
     // Rest of the methods...
@@ -228,7 +180,7 @@ public class ChannelPanel {
                     channelManager.mapChannelsByName(rightModel.getValueAt(modelTargetRow, 0).toString(), channelName);
                     rightModel.setValueAt(channelName, modelTargetRow, 1);
                 } else {
-                    this.tvhBrowser.showInfo(existingText);
+                    this.tvhBrowser.showInfo("Is already mapped with " + existingText);
                 }
 
                 // leftModel.removeRow(selectedRow);

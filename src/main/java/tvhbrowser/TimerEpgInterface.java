@@ -96,7 +96,7 @@ public abstract class TimerEpgInterface {
 
     }
 
-    private ArrayList<String> getProgramTextToCompare(Program program) {
+    public ArrayList<String> getProgramTextToCompare(Program program) {
         ArrayList<String> values = new ArrayList<>();
         if (program.getTitle() != null) {
             values.add(program.getTitle().toLowerCase());
@@ -169,14 +169,14 @@ public abstract class TimerEpgInterface {
         // getStartRealDateTime().toLocalTime().toSecondOfDay();
         long secondOfDayProgram = program.getStartTime() * 60;
 
-        if (Math.abs(secondOfDayProgram - secondOfDayStartTimer) <= 3000) {
+        if (Math.abs(secondOfDayProgram - secondOfDayStartTimer) <= 300) {
 
             ArrayList<String> timerTextToCompare = getTimerTextToCompare();
             ArrayList<String> programTextToCompare = getProgramTextToCompare(program);
 
             for (String timerText : timerTextToCompare) {
                 for (String programText : programTextToCompare) {
-                    if (timerText.equals(programText)) {
+                    if (timerText.startsWith(programText) || programText.startsWith(timerText)) {
 
                         if( program.getIntField(devplugin.ProgramFieldType.EPISODE_NUMBER_TYPE) > 0 && this.getEpisodeNumber() > 0)
                         {

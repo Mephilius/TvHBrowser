@@ -24,6 +24,7 @@ public class ContextMenuFactory {
 
     public ActionMenu createActionMenu(Program program) {
 
+        boolean isOnAir = program.isOnAir();
         Marker[] markers = program.getMarkerArr();
         boolean marked = false;
         for (int i = 0; i < markers.length; i++) {
@@ -34,29 +35,40 @@ public class ContextMenuFactory {
         }
 
         ActionMenu[] actions = new ActionMenu[2];
+
         AbstractAction record = new AbstractAction() {
 
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
-                if (e.getActionCommand().equals("Stop recording")) {
+                if (e.getActionCommand().equals("Stop recording") || e.getActionCommand().equals("Delete Timer")) {
                     timerManager.deleteTimer(program);
-                } else
-                {
+                } else {
                     timerManager.createTimer(program);
                 }
             }
         };
 
-
-
         if (marked) {
-            record.putValue(Action.NAME, "Stop recording");
-            record.putValue(Action.SMALL_ICON,
-                    new ImageIcon(ImageUtilities.createImageFromJar("stop.png", TvHBrowser.class)));
+
+            if (isOnAir) {
+                record.putValue(Action.NAME, "Stop recording");
+                record.putValue(Action.SMALL_ICON,
+                        new ImageIcon(ImageUtilities.createImageFromJar("stop.png", TvHBrowser.class)));
+            } else {
+                record.putValue(Action.NAME, "Delete Timer");
+                record.putValue(Action.SMALL_ICON,
+                        new ImageIcon(ImageUtilities.createImageFromJar("delete_timer.png", TvHBrowser.class)));
+            }
         } else {
-            record.putValue(Action.NAME, "Recording");
-            record.putValue(Action.SMALL_ICON,
-                    new ImageIcon(ImageUtilities.createImageFromJar("recording.png", TvHBrowser.class)));
+            if (isOnAir) {
+                record.putValue(Action.NAME, "Recording running Program");
+                record.putValue(Action.SMALL_ICON,
+                        new ImageIcon(ImageUtilities.createImageFromJar("recording.png", TvHBrowser.class)));
+            } else {
+                record.putValue(Action.NAME, "Recording");
+                record.putValue(Action.SMALL_ICON,
+                        new ImageIcon(ImageUtilities.createImageFromJar("recording.png", TvHBrowser.class)));
+            }
         }
 
         AbstractAction setting = new AbstractAction() {
@@ -81,7 +93,8 @@ public class ContextMenuFactory {
         // menu.putValue(Action.SMALL_ICON, tvhBrowser.createImageIcon("actions",
         // "tvheadend.png", 16));
 
-        return new ActionMenu("Tvheadend", actions);
+        return new ActionMenu("Tvheadend",
+                new ImageIcon(ImageUtilities.createImageFromJar("tvheadend.png", TvHBrowser.class)), actions);
 
     }
 

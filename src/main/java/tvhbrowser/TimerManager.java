@@ -37,7 +37,8 @@ public class TimerManager {
 
   private Map<Date, HashMap<String, ArrayList<String>>> timerDateMap;
 
-  public TimerManager(TvHBrowser tvhbrowser, TVHeadendConnection connection, ChannelManager channelManager, EpgManager epgManager) {
+  public TimerManager(TvHBrowser tvhbrowser, TVHeadendConnection connection, ChannelManager channelManager,
+      EpgManager epgManager) {
     this.tvhbrowser = tvhbrowser;
     this.timerDateMap = new HashMap<>();
     this.timerToProgramMap = new HashMap<>();
@@ -184,12 +185,13 @@ public class TimerManager {
         isMapped = true;
         break;
       } else {
-        tvhbrowser.writeLog("not match");
+        tvhbrowser.writeLog("Program texts: " + timer.getProgramTextToCompare(program).toString());
       }
     }
 
     if (!isMapped) {
       tvhbrowser.writeLog("No mapping could be done for timer " + timerId);
+      tvhbrowser.writeLog("Timer texts: " + timer.getTimerTextToCompare().toString());
     }
   }
 
@@ -203,7 +205,7 @@ public class TimerManager {
   }
 
   public void createTimer(Program program) {
-    EpgProgram  epgProgram = this.epgManager.getEpgProgram(program);
+    EpgProgram epgProgram = this.epgManager.getEpgProgram(program);
 
     if (epgProgram == null) {
       tvhbrowser.showError("No EPG data found for program " + program.getTitle());
@@ -219,7 +221,7 @@ public class TimerManager {
     String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
         .findFirst()
         .get().getKey();
-    tvhbrowser.showInfo("Delete timer " + timerId);
+    // tvhbrowser.showInfo("Delete timer " + timerId);
     connection.deleteTimer(timerId);
     this.updateTimer();
   }
@@ -245,38 +247,38 @@ public class TimerManager {
     }
   }
 
-      /**
-     * Writes the channel mapping data to an ObjectOutputStream.
-     *
-     * @param out   The ObjectOutputStream to write to.
-     * @throws IOException   If an I/O error occurs while writing the data.
-     */
-    public void writeData(ObjectOutputStream out) throws IOException {
-        out.writeInt(timerToProgramMap.size());
-        for (Map.Entry<String, String> entry : timerToProgramMap.entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
-        }
+  /**
+   * Writes the channel mapping data to an ObjectOutputStream.
+   *
+   * @param out The ObjectOutputStream to write to.
+   * @throws IOException If an I/O error occurs while writing the data.
+   */
+  public void writeData(ObjectOutputStream out) throws IOException {
+    out.writeInt(timerToProgramMap.size());
+    for (Map.Entry<String, String> entry : timerToProgramMap.entrySet()) {
+      out.writeUTF(entry.getKey());
+      out.writeUTF(entry.getValue());
+    }
+  }
+
+  /**
+   * Reads the channel mapping data from an ObjectInputStream.
+   *
+   * @param in The ObjectInputStream to read from.
+   * @throws IOException If an I/O error occurs while reading the data.
+   */
+  public void readData(ObjectInputStream in) throws IOException {
+    if (timerMap.size() == 0) {
+      this.getTimerMap();
     }
 
-    /**
-     * Reads the channel mapping data from an ObjectInputStream.
-     *
-     * @param in   The ObjectInputStream to read from.
-     * @throws IOException   If an I/O error occurs while reading the data.
-     */
-    public void readData(ObjectInputStream in) throws IOException {
-        if (timerMap.size() == 0) {
-            this.getTimerMap();
-        }
-
-        String timerId;
-        String programId;
-        int size = in.readInt();
-        for (int i = 0; i < size; i++) {
-            timerId = in.readUTF();
-            programId = in.readUTF();
-            handleExistingTimer(timerId, programId);
-        }
+    String timerId;
+    String programId;
+    int size = in.readInt();
+    for (int i = 0; i < size; i++) {
+      timerId = in.readUTF();
+      programId = in.readUTF();
+      handleExistingTimer(timerId, programId);
     }
+  }
 }
