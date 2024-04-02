@@ -14,8 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - task: gittools/actions/gitversion/setup@v1.1.1
-        displayName: Install GitVersion
+      - name: Install GitVersion
+        uses: gittools/actions/gitversion/setup@v1.1.1
         inputs:
           versionSpec: '5.x'
 
