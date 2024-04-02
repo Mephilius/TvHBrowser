@@ -60,8 +60,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.git_version.outputs.VERSION }}  # Verwende den Commit-Hash als Tag-Name
-          release_name: Release ${{ steps.git_version.outputs.VERSION }}  # Verwende den Commit-Hash als Release-Name
+          tag_name: v${{ env.LegacySemVer }}  # Verwende den Commit-Hash als Tag-Name
+          release_name: Release v${{ env.LegacySemVer }}  # Verwende den Commit-Hash als Release-Name
           draft: false
           prerelease: false
 
