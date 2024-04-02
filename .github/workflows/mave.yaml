@@ -19,9 +19,18 @@ jobs:
           distribution: "adopt"
           java-version: "11"
 
-      - name: Get Git Version
+      # Installiere GitVersion
+      - name: Install GitVersion
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mono-devel
+          wget https://github.com/GitTools/GitVersion/releases/download/v5.6.1/GitVersion_5.6.1.deb
+          sudo dpkg -i GitVersion_5.6.1.deb
+
+      # Führe GitVersion aus, um die Versionsnummer zu bestimmen
+      - name: Get GitVersion
         id: git_version
-        run: echo ::set-output name=VERSION::$(git describe --tags --abbrev=0)
+        run: gitversion /output json > version.json
 
       - name: Download DEB Package
         run: |
@@ -41,15 +50,16 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
+      # Erstelle eine Release, verwende dabei die von GitVersion ermittelte Versionsnummer
       - name: Create Release
-        if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Tag-Name
-          release_name: Release ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Release-Name
+          tag_name: ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}  # Verwende die von GitVersion ermittelte Versionsnummer
+          release_name: Release ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}  # Verwende die von GitVersion ermittelte Versionsnummer
           draft: false
           prerelease: false
 
