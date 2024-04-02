@@ -24,7 +24,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y openjdk-11-jre
           sudo apt-get install -y default-jre
-          sudo dpkg -i deb-package.deb
 
       - name: Import JAR file to Local Maven Repository
         run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=tvbrowser -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
