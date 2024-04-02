@@ -32,7 +32,7 @@ jobs:
           sudo dpkg -i deb-package.deb
 
       - name: Import JAR file to Local Maven Repository
-        run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=pom.xml -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
+        run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=tvbrowser -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
 
 
       - name: Build with Maven
