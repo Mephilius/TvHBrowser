@@ -19,24 +19,6 @@ jobs:
           distribution: "adopt"
           java-version: "11"
 
-      # Installiere GitVersion
-      - name: Install GitVersion
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y mono-devel
-          wget https://github.com/GitTools/GitVersion/releases/download/v5.6.1/GitVersion_5.6.1.deb
-          sudo dpkg -i GitVersion_5.6.1.deb
-
-      # Führe GitVersion aus, um die Versionsnummer zu bestimmen
-      - name: Get GitVersion
-        id: git_version
-        run: gitversion /output json > version.json
-
-      - name: Download DEB Package
-        run: |
-          DEB_LINK="https://sourceforge.net/projects/tvbrowser/files/TV-Browser%20Releases%20%28Java%2011%20and%20higher%29/4.2.7/tvbrowser_4.2.7-1_all.deb/download"
-          wget -O deb-package.deb "$DEB_LINK"
-
       - name: Install DEB Package
         run: |
           sudo apt-get update
@@ -50,16 +32,19 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
-      # Erstelle eine Release, verwende dabei die von GitVersion ermittelte Versionsnummer
+      - name: Get GitVersion
+          id: git_version
+          run: gitversion /output json > version.json
+
       - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}  # Verwende die von GitVersion ermittelte Versionsnummer
-          release_name: Release ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}  # Verwende die von GitVersion ermittelte Versionsnummer
+          tag_name: ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}
+          release_name: Release ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}
           draft: false
           prerelease: false
 
