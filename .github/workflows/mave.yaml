@@ -19,31 +19,35 @@ jobs:
           distribution: "adopt"
           java-version: "11"
 
+      - name: Download DEB Package
+        run: |
+          DEB_LINK="https://sourceforge.net/projects/tvbrowser/files/TV-Browser%20Releases%20%28Java%2011%20and%20higher%29/4.2.7/tvbrowser_4.2.7-1_all.deb/download"
+          wget -O deb-package.deb "$DEB_LINK"
+
       - name: Install DEB Package
         run: |
           sudo apt-get update
           sudo apt-get install -y openjdk-11-jre
           sudo apt-get install -y default-jre
+          sudo dpkg -i deb-package.deb
 
       - name: Import JAR file to Local Maven Repository
         run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=tvbrowser -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
 
+
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
-      - name: Get GitVersion
-        id: git_version
-        run: gitversion /output json > version.json
 
       - name: Create Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}
-          release_name: Release ${{ fromJson(steps.git_version.outputs.stdout).MajorMinorPatch }}
+          tag_name: ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Tag-Name
+          release_name: Release ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Release-Name
           draft: false
           prerelease: false
 
