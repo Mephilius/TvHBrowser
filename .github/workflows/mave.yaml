@@ -19,6 +19,10 @@ jobs:
           distribution: "adopt"
           java-version: "11"
 
+      - name: Get Git Version
+        id: git_version
+        run: echo ::set-output name=VERSION::$(git describe --tags --abbrev=0)
+
       - name: Download DEB Package
         run: |
           DEB_LINK="https://sourceforge.net/projects/tvbrowser/files/TV-Browser%20Releases%20%28Java%2011%20and%20higher%29/4.2.7/tvbrowser_4.2.7-1_all.deb/download"
@@ -34,9 +38,31 @@ jobs:
       - name: Import JAR file to Local Maven Repository
         run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=tvbrowser -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
 
-
       - name: Build with Maven
         run: mvn -B package --file pom.xml
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Tag-Name
+          release_name: Release ${{ steps.git_version.outputs.VERSION }}  # Verwende die Git-Version als Release-Name
+          draft: false
+          prerelease: false
+
+      - name: Upload Artifact
+        if: steps.create_release.outputs.upload_url
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: /home/runner/work/TvHBrowser/TvHBrowser/target/TvHBrowser.jar  # Hier den Pfad zu deinem Artefakt angeben
+          asset_name: TvHBrowser.jar  # Hier den Namen deines Artefakts angeben
+          asset_content_type: application/java-archive
 
       - name: Clean Up
         run: rm deb-package.deb
