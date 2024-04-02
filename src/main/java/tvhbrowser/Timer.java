@@ -6,6 +6,7 @@ import devplugin.Program;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.security.Timestamp;
@@ -682,6 +683,10 @@ public class Timer extends TimerEpgInterface {
 
     @Override
     public void setExtractedTitle(String Lang, String Title) {
+        if(this.extractedtitel == null) {
+            this.extractedtitel = new HashMap<>();
+        }
+        
         this.extractedtitel.put(Lang, Title);
     }
 
