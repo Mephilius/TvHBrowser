@@ -51,9 +51,7 @@ jobs:
 
       - name: Update pom.xml with Git Version
         run: |
-          - name: Update pom.xml with Git Version
-            run: |
-              sed -i "s/<project_version>/${{ steps.version_step.outputs.LegacySemVer }}/g" pom.xml
+          sed -i "s/<project_version>/${{ steps.version_step.outputs.LegacySemVer }}/g" pom.xml
 
       - name: Build with Maven
         run: mvn -B package --file pom.xml
