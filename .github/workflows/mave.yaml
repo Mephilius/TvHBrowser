@@ -46,12 +46,14 @@ jobs:
       - name: Import JAR file to Local Maven Repository
         run: mvn install:install-file -Dfile=/usr/share/tvbrowser/tvbrowser.jar -DgroupId=tvbrowser -DartifactId=core -Dversion=4.2.7 -Dpackaging=jar
 
+
+      - name: Update pom.xml with Git Version
+        run: |
+          xmlstarlet ed --inplace -u "//project/version" -v "${LegacySemVersion}" pom.xml
+          xmlstarlet ed --inplace -u "//project/properties/git.commit.id" -v "${LegacySemVersion}" pom.xml
+          
       - name: Build with Maven
         run: mvn -B package --file pom.xml
-
-      - name: Determine Git Version
-        id: git_version
-        run: echo ::set-output name=VERSION::$(git rev-parse --short HEAD)
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
