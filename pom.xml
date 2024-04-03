@@ -5,7 +5,7 @@
   <groupId>tvhbrowser</groupId>
   <artifactId>TvHBrowser</artifactId>
   <packaging>jar</packaging>
-  <version>0.1.0</version>
+  <version>project_version</version>
   <name>TvHBrowser</name>
   <url>http://maven.apache.org</url>
 
