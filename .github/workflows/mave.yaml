@@ -54,6 +54,15 @@ jobs:
       - name: Build with Maven
         run: mvn -B package --file pom.xml
 
+      - name: Copy Artifact
+        run: mkdir staging && cp target/*.jar staging
+        
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Package
+          path: staging
+
       - name: Create Release
         if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
         id: create_release
