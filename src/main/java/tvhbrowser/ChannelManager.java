@@ -169,7 +169,9 @@ public class ChannelManager {
         TVHeadendChannel tvhChannel = getTVHChannelbyName(tvhChannelName);
 
         if (tvbChannel != null && tvhChannel != null) {
+            writeLog("Remove vom channelToTVHMap:" + tvbChannelName + " " + tvbChannel.getKey());
             channelToTVHMap.remove(tvbChannel.getUniqueId());
+            writeLog("Remove vom channelToTVHMap:" + tvbChannelName + " " + tvbChannel.getUniqueId());
             tvhToChannelMap.remove(tvhChannel.getKey());
         } else {
             if (tvbChannel == null) {
@@ -219,7 +221,7 @@ public class ChannelManager {
      * @return               The TVHeadendChannel object.
      */
     public TVHeadendChannel getMappedTvhChannel(String tvbChannelId) {
-        tvhBrowser.writeLog("Get mapped TVH channel for " + tvbChannelId);
+        writeLog("Get mapped TVH channel for " + tvbChannelId);
         return tvhChannelMap.get(channelToTVHMap.get(tvbChannelId));
     }
 
@@ -230,7 +232,7 @@ public class ChannelManager {
      * @return             The devplugin.Channel object.
      */
     public devplugin.Channel getMappedTvbChannel(String tvhChannel) {
-        tvhBrowser.writeLog("Get mapped TVB channel for " + tvhChannel);
+        writeLog("Get mapped TVB channel for " + tvhChannel);
         return tvbChannelMap.get(tvhToChannelMap.get(tvhChannel));
     }
 
@@ -271,5 +273,9 @@ public class ChannelManager {
             tvhChannelKey = in.readUTF();
             mapChannels(tvbChannelId, tvhChannelKey);
         }
+    }
+
+    public void writeLog(String message) {
+        tvhBrowser.writeLog(message);
     }
 }

@@ -309,7 +309,8 @@ public final class TvHBrowser extends Plugin {
     public void writeLog(String log) {
         try {
             String currentTime = new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
-            Files.writeString(Paths.get("C:\\Temp\\tvhbrowser.log"), currentTime + " - " + log + "\n",
+            String tmpdir = System.getProperty("java.io.tmpdir");
+            Files.writeString(Paths.get(tmpdir + "\\tvhbrowser.log"), currentTime + " - " + log + "\n",
                     java.nio.file.StandardOpenOption.APPEND, java.nio.file.StandardOpenOption.CREATE);
         } catch (IOException e) {
             e.printStackTrace();

@@ -70,7 +70,8 @@ public class TVHeadendConnection {
                 connected = true;
                 return true;
             } else {
-                showError("Calling " + urlString + " - HTTP error " + responseCode);
+                tvhBrowser.writeLog("Calling " + urlString + " - HTTP error " + responseCode);
+                // showError("Calling " + urlString + " - HTTP error " + responseCode);
             }
         } catch (IOException e) {
             e.printStackTrace();

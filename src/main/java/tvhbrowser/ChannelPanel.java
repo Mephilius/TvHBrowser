@@ -256,7 +256,7 @@ public class ChannelPanel {
     private void unmmapSelectedRow() {
         int selectedRow = rightTable.getSelectedRow();
         if (selectedRow != -1) {
-            DefaultTableModel leftTableModel = (DefaultTableModel) leftTable.getModel();
+            // DefaultTableModel leftTableModel = (DefaultTableModel) leftTable.getModel();
             DefaultTableModel rightTableModel = (DefaultTableModel) rightTable.getModel();
 
             // Get the text from the right table
@@ -271,6 +271,7 @@ public class ChannelPanel {
             rightTableModel.setValueAt("", selectedRow, 1);
 
             // Remove the mapping from the ChannelManager
+            channelManager.writeLog("Unmapping " + tvhText + " from " + tvbText);
             channelManager.unmapChannelsByName(tvbText,tvhText);
 
         }
