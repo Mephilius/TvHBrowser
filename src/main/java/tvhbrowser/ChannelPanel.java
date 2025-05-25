@@ -1,18 +1,17 @@
 package tvhbrowser;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import javax.swing.text.BadLocationException;
 
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.regex.PatternSyntaxException;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ChannelPanel {
     private final JPanel panel;
@@ -38,8 +37,6 @@ public class ChannelPanel {
         sortTables();
     }
 
-
-
     private void initializeTables() {
         // Initialize left table
         leftTable = new JTable();
@@ -55,15 +52,16 @@ public class ChannelPanel {
         rightScrollPane.setPreferredSize(new Dimension(400, 300));
         panel.add(rightScrollPane, BorderLayout.CENTER);
 
-
     }
 
-    private void sortTables()
-    {
-        TableRowSorter<DefaultTableModel> leftSorter = new TableRowSorter<DefaultTableModel>((DefaultTableModel) leftTable.getModel());
+    private void sortTables() {
+        channelManager.writeLog("Sorting tables");
+        TableRowSorter<DefaultTableModel> leftSorter = new TableRowSorter<DefaultTableModel>(
+                (DefaultTableModel) leftTable.getModel());
         leftSorter.setSortable(0, true);
         leftTable.setRowSorter(leftSorter);
-        TableRowSorter<DefaultTableModel> rightSorter = new TableRowSorter<DefaultTableModel>((DefaultTableModel) rightTable.getModel());
+        TableRowSorter<DefaultTableModel> rightSorter = new TableRowSorter<DefaultTableModel>(
+                (DefaultTableModel) rightTable.getModel());
         rightSorter.setSortable(0, true);
         rightTable.setRowSorter(rightSorter);
     }
@@ -72,7 +70,7 @@ public class ChannelPanel {
         // Add buttons
         JPanel buttonPanel = new JPanel(new GridLayout(1, 3));
 
-        JButton moveRightButton = new JButton(">");
+        JButton moveRightButton = new JButton("map");
         moveRightButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -81,7 +79,7 @@ public class ChannelPanel {
         });
         buttonPanel.add(moveRightButton);
 
-        JButton moveLeftButton = new JButton("<");
+        JButton moveLeftButton = new JButton("remove");
         moveLeftButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -90,7 +88,7 @@ public class ChannelPanel {
         });
         buttonPanel.add(moveLeftButton);
 
-        JButton autoButton = new JButton("Auto");
+        JButton autoButton = new JButton("auto mapping");
         autoButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -154,7 +152,7 @@ public class ChannelPanel {
                 rightTableModel.addRow(new Object[] { channel.getDefaultName(), "" });
             }
         }
-        
+
         rightTable.setModel(rightTableModel);
 
     }
@@ -226,53 +224,107 @@ public class ChannelPanel {
         return false;
     }
 
+    private double compareScore(String text1, String text2) {
+        String normalized1 = normalize(text1); // nur lowercase + trim
+        String normalized2 = normalize(text2);
+
+        if (normalized1.equals(normalized2))
+            return 1.0;
+
+        String noHd1 = normalizeWithoutHD(text1); // lowercase + trim + HD weg
+        String noHd2 = normalizeWithoutHD(text2);
+
+        if (noHd1.equals(noHd2))
+            return 0.9;
+
+        Set<String> words1 = new HashSet<>(Arrays.asList(noHd1.split("\\s+")));
+        Set<String> words2 = new HashSet<>(Arrays.asList(noHd2.split("\\s+")));
+
+        Set<String> common = new HashSet<>(words1);
+        common.retainAll(words2);
+
+        int total = Math.max(words1.size(), words2.size());
+        if (total == 0)
+            return 0.0;
+
+        return (double) common.size() / total * 0.8;
+    }
+
+    private String normalize(String text) {
+        return text.trim().toLowerCase(); // nur einfache Normalisierung
+    }
+
+    private String normalizeWithoutHD(String text) {
+        return text
+                .replaceAll("(?i)\\bHD$", "")
+                .trim()
+                .toLowerCase();
+    }
+
+
     private void autoMapping() {
         DefaultTableModel leftTableModel = (DefaultTableModel) leftTable.getModel();
         DefaultTableModel rightTableModel = (DefaultTableModel) rightTable.getModel();
 
         for (int i = 0; i < leftTableModel.getRowCount(); i++) {
             String leftText = (String) leftTableModel.getValueAt(i, 0);
-            if (leftText != null) {
-                for (int j = 0; j < rightTableModel.getRowCount(); j++) {
-                    String rightText = (String) rightTableModel.getValueAt(j, 0);
-                    String rightColumnText = (String) rightTableModel.getValueAt(j, 1);
-                    if ((compare(leftText, rightText) || compare(rightText, leftText))) {
-                        if (rightTableModel.getValueAt(j, 1).toString().isEmpty()) {
-                            rightTableModel.setValueAt(leftText, j, 1);
-                            leftTableModel.removeRow(i);
-                            channelManager.mapChannelsByName(rightText, leftText);
-                            i--;
-                            break;
-                        }
-                    }
+            if (leftText == null)
+                continue;
+
+            int bestMatchIndex = -1;
+            double bestScore = 0.0;
+
+            for (int j = 0; j < rightTableModel.getRowCount(); j++) {
+                String rightText = (String) rightTableModel.getValueAt(j, 0);
+                String rightMapped = (String) rightTableModel.getValueAt(j, 1);
+
+                if (rightText == null || (rightMapped != null && !rightMapped.isEmpty())) {
+                    continue; // überspringen wenn schon zugeordnet
                 }
+
+                double score = compareScore(leftText, rightText);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatchIndex = j;
+                }
+            }
+
+            // Mindest-Schwelle (z. B. 0.5) um irrelevante Mappings zu vermeiden
+            if (bestMatchIndex != -1 && bestScore >= 0.5) {
+                String bestRightText = (String) rightTableModel.getValueAt(bestMatchIndex, 0);
+                rightTableModel.setValueAt(leftText, bestMatchIndex, 1);
+                channelManager.mapChannelsByName(bestRightText, leftText);
+                leftTableModel.removeRow(i);
+                i--; // wegen Row-Shift nach remove
             }
         }
 
         cleanAndFillLeftTable();
-
     }
 
     private void unmmapSelectedRow() {
         int selectedRow = rightTable.getSelectedRow();
         if (selectedRow != -1) {
+
+            channelManager.writeLog("Unmapping selected row " + selectedRow);
             // DefaultTableModel leftTableModel = (DefaultTableModel) leftTable.getModel();
             DefaultTableModel rightTableModel = (DefaultTableModel) rightTable.getModel();
 
+            int modelIndex = rightTable.convertRowIndexToModel(selectedRow);
             // Get the text from the right table
-            String tvhText = (String) rightTableModel.getValueAt(selectedRow, 1);
+            String tvhText = (String) rightTableModel.getValueAt(modelIndex, 1);
 
-            String tvbText = (String) rightTableModel.getValueAt(selectedRow, 0);
+            String tvbText = (String) rightTableModel.getValueAt(modelIndex, 0);
 
             // Add the text to the left table
             // leftTableModel.addRow(new Object[] { rightText });
 
             // Remove the text from the right table
-            rightTableModel.setValueAt("", selectedRow, 1);
+            rightTableModel.setValueAt("", modelIndex, 1);
 
             // Remove the mapping from the ChannelManager
             channelManager.writeLog("Unmapping " + tvhText + " from " + tvbText);
-            channelManager.unmapChannelsByName(tvbText,tvhText);
+            channelManager.unmapChannelsByName(tvbText, tvhText);
 
         }
 

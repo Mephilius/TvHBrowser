@@ -43,10 +43,13 @@ public class ChannelManager {
      */
     public void getTVBrowserChannels() {
         this.tvbChannelMap.clear();
+        writeLog("Get TVB channels");
         devplugin.Channel[] channels = getPluginManager().getSubscribedChannels();
         for (devplugin.Channel channel : channels) {
+            writeLog("Channel: " + channel.getName() + " " + channel.getUniqueId());
             tvbChannelMap.put(channel.getUniqueId(), channel);
         }
+        writeLog("TVB channels: " + tvbChannelMap.size());
     }
 
     /**
@@ -169,9 +172,9 @@ public class ChannelManager {
         TVHeadendChannel tvhChannel = getTVHChannelbyName(tvhChannelName);
 
         if (tvbChannel != null && tvhChannel != null) {
-            writeLog("Remove vom channelToTVHMap:" + tvbChannelName + " " + tvbChannel.getKey());
-            channelToTVHMap.remove(tvbChannel.getUniqueId());
             writeLog("Remove vom channelToTVHMap:" + tvbChannelName + " " + tvbChannel.getUniqueId());
+            channelToTVHMap.remove(tvbChannel.getUniqueId());
+            writeLog("Remove vom channelToTVHMap:" + tvbChannelName + " " + tvhChannel.getKey());
             tvhToChannelMap.remove(tvhChannel.getKey());
         } else {
             if (tvbChannel == null) {

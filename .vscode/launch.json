@@ -9,6 +9,14 @@
             "name": "Current File",
             "request": "launch",
             "mainClass": "${file}"
+        },
+        {
+            "type": "java",
+            "name": "Attach to TV-Browser",
+            "request": "attach",
+            "hostName": "localhost",
+            "port": 5005,
+            "projectName": "DeinPluginProjektname"
         }
     ]
 }

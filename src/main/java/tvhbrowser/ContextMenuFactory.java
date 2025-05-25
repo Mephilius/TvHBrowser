@@ -1,6 +1,5 @@
 package tvhbrowser;
 
-import javax.faces.event.ActionEvent;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
 import javax.swing.ImageIcon;
