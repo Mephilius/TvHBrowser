@@ -41,6 +41,15 @@
                   <include>com.google.code.gson:gson</include>
                 </includes>
               </artifactSet>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>module-info.class</exclude>
+                    <exclude>META-INF/versions/**/module-info.class</exclude>
+                  </excludes>
+                </filter>
+              </filters>
             </configuration>
           </execution>
         </executions>
@@ -86,12 +95,12 @@
     <dependency>
       <groupId>org.json</groupId>
       <artifactId>json</artifactId>
-      <version>LATEST</version> <!-- Aktuelle Versionsnummer hier einfügen -->
+      <version>20250517</version>
     </dependency>
     <dependency>
       <groupId>com.google.code.gson</groupId>
       <artifactId>gson</artifactId>
-      <version>LATEST</version>
+      <version>2.14.0</version>
     </dependency>
   </dependencies>
   <properties>
