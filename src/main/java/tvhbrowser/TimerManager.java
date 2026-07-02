@@ -221,10 +221,27 @@ public class TimerManager {
     String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
         .findFirst()
         .get().getKey();
-    // tvhbrowser.showInfo("Delete timer " + timerId);
     connection.deleteTimer(timerId);
     this.updateTimer();
   }
+
+   public void enableTimer(Program program) {
+    String programId = program.getUniqueID();
+    String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
+         .findFirst()
+         .get().getKey();
+    connection.enableTimer(timerId);
+    this.updateTimer();
+  }
+
+  public void disableTimer(Program program) {
+    String programId = program.getUniqueID();
+    String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
+          .findFirst()
+         .get().getKey();
+    connection.disableTimer(timerId); 
+    this.updateTimer();
+  }; 
 
   public void handleTvDataUpdateFinished() {
 

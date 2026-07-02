@@ -245,37 +245,15 @@ public class TVHeadendConnection {
         String protocol = useHttps ? "https://" : "http://";
         String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/create_by_event?event_id=" + eventId + "&config_uuid=c8bcf2c90db93380f1861773d92b8e8f";
 
-        try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
-
-            String authString = username + ":" + password;
-            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-
-                tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response.toString());
-            } else {
-                showError("Calling " + urlString + " - HTTP error " + responseCode);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
+        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
+        if (response != null) {
+            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
         }
     }
 
+    /**
+     * @param timerId
+     */
     public void deleteTimer(String timerId) {
         String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
         int port = tvhBrowser.getSetting("port", 9981);
@@ -287,38 +265,24 @@ public class TVHeadendConnection {
         String protocol = useHttps ? "https://" : "http://";
         String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/cancel?uuid=" +  timerId;
 
-        try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
-
-            String authString = username + ":" + password;
-            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-
-                tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response.toString());
-            } else {
-                showError("Calling " + urlString + " - HTTP error " + responseCode);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
+        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
+        if (response != null) {
+            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
         }
     }
 
+    /**
+     * @param timerId
+     */
     public void disableTimer(String timerId) {
+        setTimerEnabled(timerId, false);
+    }
+
+    public void enableTimer(String timerId) {
+        setTimerEnabled(timerId, true);
+    }
+
+    private void setTimerEnabled(String timerId, boolean enabled) {
         String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
         int port = tvhBrowser.getSetting("port", 9981);
         int timeout = tvhBrowser.getSetting("timeout", 500);
@@ -327,8 +291,17 @@ public class TVHeadendConnection {
         boolean useHttps = tvhBrowser.getSetting("https", false);
 
         String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/cancel?uuid=" + timerId;
+        String enabledValue = enabled ? "true" : "false";
+        String urlString = protocol + fqdn + ":" + port
+                + "/api/idnode/save?node=%7B%22enabled%22:" + enabledValue + ",%22uuid%22:%22" + timerId + "%22%7D";
 
+        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
+        if (response != null) {
+            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
+        }
+    }
+
+    private String makeAuthenticatedGetRequest(String urlString, String username, String password, int timeout) {
         try {
             URL url = new URL(urlString);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -349,8 +322,7 @@ public class TVHeadendConnection {
                 }
 
                 reader.close();
-
-                tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response.toString());
+                return response.toString();
             } else {
                 showError("Calling " + urlString + " - HTTP error " + responseCode);
             }
@@ -358,6 +330,8 @@ public class TVHeadendConnection {
             e.printStackTrace();
             showError(urlString + ": " + e.toString());
         }
+
+        return null;
     }
 
     public List<EpgProgram> getEpgList() {

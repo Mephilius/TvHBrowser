@@ -35,6 +35,7 @@ public class ContextMenuFactory {
 
         ActionMenu[] actions = new ActionMenu[2];
 
+        // Recording action (Recording/Stop recording)
         AbstractAction record = new AbstractAction() {
 
             @Override
@@ -44,6 +45,19 @@ public class ContextMenuFactory {
                 } else {
                     timerManager.createTimer(program);
                 }
+            }
+        };
+
+        // Recording action (Enable/Disable recording)
+        AbstractAction enable = new AbstractAction() {
+
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                if (e.getActionCommand().equals("Enable recording")) {
+                    timerManager.enableTimer(program);
+                } else {
+                    timerManager.disableTimer(program);
+                    }
             }
         };
 
@@ -57,6 +71,9 @@ public class ContextMenuFactory {
                 record.putValue(Action.NAME, "Delete Timer");
                 record.putValue(Action.SMALL_ICON,
                         new ImageIcon(ImageUtilities.createImageFromJar("delete_timer.png", TvHBrowser.class)));
+                enable.putValue(Action.NAME, "Disable Timer");
+                enable.putValue(Action.SMALL_ICON,
+                        new ImageIcon(ImageUtilities.createImageFromJar("timer_enabled.png", TvHBrowser.class)));
             }
         } else {
             if (isOnAir) {
@@ -70,6 +87,7 @@ public class ContextMenuFactory {
             }
         }
 
+        // TVHEadend settings menu.
         AbstractAction setting = new AbstractAction() {
 
             @Override
