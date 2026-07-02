@@ -63,28 +63,18 @@ jobs:
           name: Package
           path: staging
 
-      - name: Create Release
-        if: github.ref == 'refs/heads/main'  # Ausführen, wenn auf dem main-Branch gepusht wurde
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create or Update Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.LegacySemVer }}  # Verwende den Commit-Hash als Tag-Name
-          release_name: Release v${{ env.LegacySemVer }}  # Verwende den Commit-Hash als Release-Name
+          tag_name: v${{ env.LegacySemVer }}
+          name: Release v${{ env.LegacySemVer }}
+          files: target/TvHBrowser.jar
           draft: false
           prerelease: false
-
-      - name: Upload Artifact
-        if: steps.create_release.outputs.upload_url
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /home/runner/work/TvHBrowser/TvHBrowser/target/TvHBrowser.jar  # Hier den Pfad zu deinem Artefakt angeben
-          asset_name: TvHBrowser.jar  # Hier den Namen deines Artefakts angeben
-          asset_content_type: application/java-archive
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          generate_release_notes: true
 
       - name: Clean Up
         run: rm deb-package.deb
