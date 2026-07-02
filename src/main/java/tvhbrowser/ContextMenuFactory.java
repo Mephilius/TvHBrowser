@@ -33,7 +33,7 @@ public class ContextMenuFactory {
             }
         }
 
-        ActionMenu[] actions = new ActionMenu[2];
+        ActionMenu[] actions;
 
         // Recording action (Recording/Stop recording)
         AbstractAction record = new AbstractAction() {
@@ -53,11 +53,11 @@ public class ContextMenuFactory {
 
             @Override
             public void actionPerformed(java.awt.event.ActionEvent e) {
-                if (e.getActionCommand().equals("Enable recording")) {
-                    timerManager.enableTimer(program);
-                } else {
+                if (e.getActionCommand().equals("Disable Timer")) {
                     timerManager.disableTimer(program);
-                    }
+                } else {
+                    timerManager.enableTimer(program);
+                }
             }
         };
 
@@ -71,9 +71,16 @@ public class ContextMenuFactory {
                 record.putValue(Action.NAME, "Delete Timer");
                 record.putValue(Action.SMALL_ICON,
                         new ImageIcon(ImageUtilities.createImageFromJar("delete_timer.png", TvHBrowser.class)));
-                enable.putValue(Action.NAME, "Disable Timer");
-                enable.putValue(Action.SMALL_ICON,
-                        new ImageIcon(ImageUtilities.createImageFromJar("timer_enabled.png", TvHBrowser.class)));
+                boolean timerEnabled = timerManager.isTimerEnabled(program);
+                if (timerEnabled) {
+                    enable.putValue(Action.NAME, "Disable Timer");
+                    enable.putValue(Action.SMALL_ICON,
+                            new ImageIcon(ImageUtilities.createImageFromJar("timer_disabled.png", TvHBrowser.class)));
+                } else {
+                    enable.putValue(Action.NAME, "Enable Timer");
+                    enable.putValue(Action.SMALL_ICON,
+                            new ImageIcon(ImageUtilities.createImageFromJar("timer_enabled.png", TvHBrowser.class)));
+                }
             }
         } else {
             if (isOnAir) {
@@ -99,10 +106,18 @@ public class ContextMenuFactory {
         setting.putValue(Action.SMALL_ICON,
                 new ImageIcon(ImageUtilities.createImageFromJar("tvheadend.png", TvHBrowser.class)));
 
-        actions[0] = new ActionMenu(record);
-        actions[1] = new ActionMenu(setting);
-
-        ActionMenu menu = new ActionMenu("Tvheadend", actions);
+        if (marked && !isOnAir) {
+            actions = new ActionMenu[] {
+                new ActionMenu(record),
+                new ActionMenu(enable),
+                new ActionMenu(setting)
+            };
+        } else {
+            actions = new ActionMenu[] {
+                new ActionMenu(record),
+                new ActionMenu(setting)
+            };
+        }
 
         // menu.
 

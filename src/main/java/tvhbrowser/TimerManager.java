@@ -217,31 +217,66 @@ public class TimerManager {
   }
 
   public void deleteTimer(Program program) {
-    String programId = program.getUniqueID();
-    String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
-        .findFirst()
-        .get().getKey();
+    String timerId = getTimerIdForProgram(program, "delete");
+    if (timerId == null) {
+      return;
+    }
     connection.deleteTimer(timerId);
     this.updateTimer();
   }
 
    public void enableTimer(Program program) {
-    String programId = program.getUniqueID();
-    String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
-         .findFirst()
-         .get().getKey();
+    String timerId = getTimerIdForProgram(program, "enable");
+    if (timerId == null) {
+      return;
+    }
     connection.enableTimer(timerId);
     this.updateTimer();
   }
 
   public void disableTimer(Program program) {
-    String programId = program.getUniqueID();
-    String timerId = timerToProgramMap.entrySet().stream().filter(entry -> entry.getValue().equals(programId))
-          .findFirst()
-         .get().getKey();
+    String timerId = getTimerIdForProgram(program, "disable");
+    if (timerId == null) {
+      return;
+    }
     connection.disableTimer(timerId); 
     this.updateTimer();
-  }; 
+  }
+
+  public boolean isTimerEnabled(Program program) {
+    String timerId = findTimerIdForProgram(program);
+    if (timerId == null) {
+      return true;
+    }
+
+    Timer timer = timerMap.get(timerId);
+    if (timer == null) {
+      return true;
+    }
+
+    return timer.isEnabled();
+  }
+
+  private String findTimerIdForProgram(Program program) {
+    String programId = program.getUniqueID();
+    return timerToProgramMap.entrySet().stream()
+        .filter(entry -> entry.getValue().equals(programId))
+        .map(Map.Entry::getKey)
+        .findFirst()
+        .orElse(null);
+  }
+
+  private String getTimerIdForProgram(Program program, String action) {
+    String timerId = findTimerIdForProgram(program);
+
+    if (timerId == null) {
+      String programId = program.getUniqueID();
+      tvhbrowser.showError("No timer mapping found for program '" + program.getTitle() + "' while trying to " + action + ".");
+      tvhbrowser.writeLog("No timer mapping for programId " + programId + " while trying to " + action);
+    }
+
+    return timerId;
+  }
 
   public void handleTvDataUpdateFinished() {
 
