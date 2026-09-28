@@ -1,11 +1,10 @@
-
 /**
  * The `TvHBrowser` class is a plugin that exports program schedules from TV-Browser to Tvheadend.
  * It provides functionality for configuring settings, managing timers, and interacting with Tvheadend.
- * 
+ *
  * This plugin is developed by Markus Muerling (mephilius@muerling.de) and is licensed under AGPL-3.0.
  * For more information, visit the project website: https://muerling.de/TvHBrowser
- * 
+ *
  * @author Markus Muerling
  * @copyright 2024
  */
@@ -13,34 +12,27 @@
 package tvhbrowser;
 
 import devplugin.*;
-import util.ui.EnhancedPanelBuilder;
-import com.jgoodies.forms.layout.FormLayout;
 
-import java.awt.event.ActionEvent;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
-import javax.swing.AbstractAction;
-import javax.swing.Action;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 
-/**
- * The `TvHBrowser` class is a plugin that exports program schedules from
- * TV-Browser to Tvheadend.
- * It provides functionality for configuring settings, managing timers, and
- * interacting with Tvheadend.
- * 
- * This plugin is developed by Markus Muerling (mephilius@muerling.de) and is
- * licensed under AGPL-3.0.
- * For more information, visit the project website:
- * https://muerling.de/TvHBrowser
- */
 public final class TvHBrowser extends Plugin {
 
     private final static Version VERSION = new Version(0, 1, true);
@@ -50,38 +42,28 @@ public final class TvHBrowser extends Plugin {
             "Markus Muerling (mephilius@muerling.de)",
             "AGPL-3.0",
             "https://muerling.de/TvHBrowser");
-    private final TvHBSettingsPanel settingsPanel;
-    private final long mainThreadId = Thread.currentThread().getId();
 
-    private final TimerManager timerManager;
+    private static final long MAX_LOG_BYTES = 5L * 1024 * 1024;
+    private static final java.nio.file.Path LOG_FILE = Paths.get(System.getProperty("java.io.tmpdir"),
+            "tvhbrowser.log");
 
-    private final ChannelManager channelManager;
-
-    private static Properties settings;
-
-    private final TVHeadendConnection tvHeadendConnection;
-
-    private final TVHTimerTask timerTask;
-
-    private final ContextMenuFactory cmf;
-
-    private final EpgManager epgManager;
-
-    /** Translator */
     private static final util.i18n.Localizer mLocalizer = util.i18n.Localizer.getLocalizerFor(TvHBrowser.class);
 
+    private final TimerManager timerManager;
+    private final ChannelManager channelManager;
+    private final TVHeadendConnection tvHeadendConnection;
+    private final TVHTimerTask timerTask;
+    private final ContextMenuFactory cmf;
+    private final EpgManager epgManager;
+
+    private volatile Properties settings = new Properties();
+
     public TvHBrowser() {
-        settings = new Properties();
-
         this.tvHeadendConnection = new TVHeadendConnection(this);
-
         this.channelManager = new ChannelManager(this, tvHeadendConnection);
         this.epgManager = new EpgManager(this, tvHeadendConnection, channelManager);
         this.timerManager = new TimerManager(this, tvHeadendConnection, channelManager, epgManager);
-        this.settingsPanel = new TvHBSettingsPanel(this, timerManager, channelManager);
-
         this.cmf = new ContextMenuFactory(this, channelManager, timerManager);
-
         this.timerTask = new TVHTimerTask(this);
     }
 
@@ -104,14 +86,15 @@ public final class TvHBrowser extends Plugin {
         return cmf.createActionMenu(program);
     }
 
-    // @Override
-    // public ActionMenu getContextMenuActions(final devplugin.Channel channel) {
-    // return cmf.createChannelActionMenu(channel);
-    // }
-
     @Override
     public final String getPluginCategory() {
         return CATEGORY_REMOTE_CONTROL_SOFTWARE;
+    }
+
+    @Override
+    public void onDeactivation() {
+        timerTask.stopThread();
+        timerManager.shutdown();
     }
 
     public static String getTranslation(String key, String altText) {
@@ -120,14 +103,6 @@ public final class TvHBrowser extends Plugin {
 
     public static String getTranslation(String key, String altText, String arg1) {
         return mLocalizer.msg(key, altText, arg1);
-    }
-
-    public static String getTranslation(String key, String altText, String arg1, String arg2) {
-        return mLocalizer.msg(key, altText, arg1, arg2);
-    }
-
-    public static String getTranslation(String key, String altText, String arg1, String arg2, String arg3) {
-        return mLocalizer.msg(key, altText, arg1, arg2, arg3);
     }
 
     public Properties getSettings() {
@@ -151,7 +126,11 @@ public final class TvHBrowser extends Plugin {
     }
 
     public int getSetting(String key, int defaultValue) {
-        return Integer.parseInt(settings.getProperty(key, String.valueOf(defaultValue)));
+        try {
+            return Integer.parseInt(settings.getProperty(key, String.valueOf(defaultValue)).trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     public void setSetting(String key, boolean value) {
@@ -159,56 +138,7 @@ public final class TvHBrowser extends Plugin {
     }
 
     public boolean getSetting(String key, boolean defaultValue) {
-        return Boolean.parseBoolean(settings.getProperty(key, String.valueOf(defaultValue)));
-    }
-
-    public void setSetting(String key, long value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public long getSetting(String key, long defaultValue) {
-        return Long.parseLong(settings.getProperty(key, String.valueOf(defaultValue)));
-    }
-
-    public void setSetting(String key, double value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public double getSetting(String key, double defaultValue) {
-        return Double.parseDouble(settings.getProperty(key, String.valueOf(defaultValue)));
-    }
-
-    public void setSetting(String key, float value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public float getSetting(String key, float defaultValue) {
-        return Float.parseFloat(settings.getProperty(key, String.valueOf(defaultValue)));
-    }
-
-    public void setSetting(String key, char value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public char getSetting(String key, char defaultValue) {
-        String value = settings.getProperty(key);
-        return (value != null && !value.isEmpty()) ? value.charAt(0) : defaultValue;
-    }
-
-    public void setSetting(String key, short value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public short getSetting(String key, short defaultValue) {
-        return Short.parseShort(settings.getProperty(key, String.valueOf(defaultValue)));
-    }
-
-    public void setSetting(String key, byte value) {
-        settings.setProperty(key, String.valueOf(value));
-    }
-
-    public byte getSetting(String key, byte defaultValue) {
-        return Byte.parseByte(settings.getProperty(key, String.valueOf(defaultValue)));
+        return Boolean.parseBoolean(settings.getProperty(key, String.valueOf(defaultValue)).trim());
     }
 
     @Override
@@ -224,13 +154,17 @@ public final class TvHBrowser extends Plugin {
     @Override
     public void readData(ObjectInputStream in) throws IOException {
         channelManager.readData(in);
-        // timerManager.readData(in);
+        try {
+            timerManager.readManualMappings(in);
+        } catch (EOFException e) {
+            // data written by an older version
+        }
     }
 
     @Override
     public void writeData(ObjectOutputStream out) throws IOException {
         channelManager.writeData(out);
-        // timerManager.writeData(out);
+        timerManager.writeManualMappings(out);
     }
 
     @Override
@@ -259,33 +193,106 @@ public final class TvHBrowser extends Plugin {
     @Override
     public void handleTvDataUpdateFinished() {
         timerManager.handleTvDataUpdateFinished();
+        SwingUtilities.invokeLater(this::refreshProgramTree);
     }
 
     @Override
     public void handleTvBrowserStartFinished() {
-        timerManager.loadTimer();
-        timerManager.mapTimerToProgram();
+        channelManager.getTVBChannelList();
+        timerManager.updateTimer();
 
-        epgManager.loadEpgList();
+        Thread epgLoader = new Thread(() -> {
+            channelManager.getTVHeadendChannels();
+            epgManager.loadEpgList();
+        }, "tvh-epg-loader");
+        epgLoader.setDaemon(true);
+        epgLoader.start();
+
         timerTask.startThread();
     }
 
     public void testTVHConnection() {
-        if (tvHeadendConnection.testConnection()) {
-            writeLog("Connection to Tvheadend successful");
-        } else {
-            showError("Connection to Tvheadend failed");
-        }
+        Thread tester = new Thread(() -> {
+            if (tvHeadendConnection.testConnection()) {
+                writeLog("Connection to Tvheadend successful");
+                timerManager.updateTimer();
+            }
+        }, "tvh-connection-test");
+        tester.setDaemon(true);
+        tester.start();
     }
 
     public void updateTimer() {
-        if (tvHeadendConnection.isConnected()) {
-            if (Thread.currentThread().getId() == mainThreadId) {
-                timerManager.updateTimer();
-            } else {
-                SwingUtilities.invokeLater(() -> timerManager.updateTimer());
+        timerManager.updateTimer();
+    }
+
+    @Override
+    protected void loadRootNode(PluginTreeNode rootNode) {
+        if (rootNode == null) {
+            return;
+        }
+
+        rootNode.removeAllChildren();
+        addTimerNodes(rootNode.addNode(getTranslation("upcomingRecordings", "Anstehende Aufnahmen")),
+                timerManager.getUpcomingTimers());
+        addTimerNodes(rootNode.addNode(getTranslation("finishedRecordings", "Abgeschlossene Aufnahmen")),
+                timerManager.getFinishedTimers());
+        rootNode.update();
+    }
+
+    private void addTimerNodes(PluginTreeNode parent, List<Timer> timers) {
+        Map<String, PluginTreeNode> dayNodes = new LinkedHashMap<>();
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
+
+        for (Timer timer : timers) {
+            String dayLabel = timer.getDate().getShortDayLongMonthString();
+            PluginTreeNode dayNode = dayNodes.get(dayLabel);
+            if (dayNode == null) {
+                dayNode = parent.addNode(dayLabel);
+                dayNode.setGroupingByDateEnabled(false);
+                dayNodes.put(dayLabel, dayNode);
+            }
+
+            Program program = timerManager.getProgramForTimer(timer.getUuid());
+            if (program != null) {
+                dayNode.addProgram(program);
+                continue;
+            }
+
+            String channelName = timer.getChannelname() == null ? "" : timer.getChannelname().trim();
+            String label = timer.getStartDateTime().format(timeFormatter) + " - " + getDisplayTitle(timer);
+            dayNode.addNode(channelName.isEmpty() ? label : label + " [" + channelName + "]");
+        }
+    }
+
+    private String getDisplayTitle(Timer timer) {
+        List<String> languages = new ArrayList<>();
+        languages.add(Locale.getDefault().getISO3Language());
+        languages.add("deu");
+        languages.add("ger");
+        languages.add("eng");
+
+        for (String language : languages) {
+            String title = timer.getTitle(language);
+            if (title != null && !title.trim().isEmpty()) {
+                return title.trim();
             }
         }
+        if (timer.getTitles() != null) {
+            for (String value : timer.getTitles().values()) {
+                if (value != null && !value.trim().isEmpty()) {
+                    return value.trim();
+                }
+            }
+        }
+
+        return getTranslation("untitled", "Ohne Titel");
+    }
+
+    public void refreshProgramTree() {
+        PluginTreeNode rootNode = getRootNode();
+        loadRootNode(rootNode);
+        storeRootNode();
     }
 
     public void showError(String error) {
@@ -304,13 +311,41 @@ public final class TvHBrowser extends Plugin {
                         JOptionPane.WARNING_MESSAGE));
     }
 
-    String currentTime = new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
+    public EpgProgram chooseEpgProgram(String message, Program reference, List<EpgProgram> options) {
+        AtomicReference<EpgProgram> result = new AtomicReference<>();
+        AtomicBoolean failed = new AtomicBoolean();
+        Runnable dialog = () -> {
+            try {
+                result.set(EpgChoiceDialog.show(getParentFrame(), message, reference.getChannel(), options));
+            } catch (RuntimeException | LinkageError e) {
+                writeLog("Program list dialog failed, using simple dialog: " + e);
+                failed.set(true);
+            }
+            if (failed.get()) {
+                result.set(EpgChoiceDialog.showSimple(message, options));
+            }
+        };
 
-    public void writeLog(String log) {
         try {
-            String currentTime = new SimpleDateFormat("HH:mm:ss.SSS").format(new Date());
-            String tmpdir = System.getProperty("java.io.tmpdir");
-            Files.writeString(Paths.get(tmpdir + "\\tvhbrowser.log"), currentTime + " - " + log + "\n",
+            if (SwingUtilities.isEventDispatchThread()) {
+                dialog.run();
+            } else {
+                SwingUtilities.invokeAndWait(dialog);
+            }
+        } catch (Exception e) {
+            writeLog("Selection dialog failed: " + e);
+        }
+        return result.get();
+    }
+
+    public synchronized void writeLog(String log) {
+        try {
+            if (Files.exists(LOG_FILE) && Files.size(LOG_FILE) > MAX_LOG_BYTES) {
+                Files.move(LOG_FILE, LOG_FILE.resolveSibling("tvhbrowser.log.old"),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            String currentTime = new SimpleDateFormat("HH:mm:ss.SSS").format(new java.util.Date());
+            Files.writeString(LOG_FILE, currentTime + " - " + log + "\n",
                     java.nio.file.StandardOpenOption.APPEND, java.nio.file.StandardOpenOption.CREATE);
         } catch (IOException e) {
             e.printStackTrace();

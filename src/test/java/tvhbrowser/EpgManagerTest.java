@@ -121,4 +121,111 @@ public class EpgManagerTest {
         assertNull(manager.getEpgProgram((Program) null));
         verify(browser).showError(anyString());
     }
+
+    @Test
+    public void strictLookupDoesNotUseTimeFallback() {
+        when(connection.getEpgList())
+                .thenReturn(new ArrayList<>(List.of(epg(1, "ch-uuid", START - 900, "Tatort"))));
+        manager.loadEpgList();
+
+        assertNull(manager.getEpgProgram(programOnChannel("Tatort", START_MIN, 0)));
+    }
+
+    @Test
+    public void similarReturnsNearestTextMatchWithinOneHour() {
+        EpgProgram farther = epg(1, "ch-uuid", START - 3000, "Tatort");
+        EpgProgram nearer = epg(2, "ch-uuid", START - 900, "Tatort");
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(farther, nearer)));
+        manager.loadEpgList();
+
+        assertSame(nearer, manager.getSimilarEpgProgram(programOnChannel("Tatort", START_MIN, 0)));
+    }
+
+    @Test
+    public void similarIsNullBeyondOneHourOrWithOtherTitle() {
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(
+                epg(1, "ch-uuid", START - 3 * 3600, "Tatort"), epg(2, "ch-uuid", START, "Anderes"))));
+        manager.loadEpgList();
+
+        assertNull(manager.getSimilarEpgProgram(programOnChannel("Tatort", START_MIN, 0)));
+    }
+
+    @Test
+    public void surroundingReturnsRunningAndNextEvent() {
+        EpgProgram earlier = epg(1, "ch-uuid", START - 7200, "Frueher");
+        EpgProgram running = epg(2, "ch-uuid", START - 900, "Laeuft");
+        EpgProgram next = epg(3, "ch-uuid", START + 1800, "Danach");
+        EpgProgram later = epg(4, "ch-uuid", START + 7200, "Spaeter");
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(later, earlier, next, running)));
+        manager.loadEpgList();
+
+        assertEquals(List.of(running, next), manager.getSurroundingEpgPrograms(programOnChannel("X", START_MIN, 0)));
+    }
+
+    @Test
+    public void surroundingHandlesMissingNeighbour() {
+        EpgProgram only = epg(1, "ch-uuid", START + 600, "Danach");
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(only)));
+        manager.loadEpgList();
+
+        assertEquals(List.of(only), manager.getSurroundingEpgPrograms(programOnChannel("X", START_MIN, 0)));
+    }
+
+    @Test
+    public void surroundingIsEmptyWithoutEpgData() {
+        when(connection.getEpgList()).thenReturn(new ArrayList<>());
+        manager.loadEpgList();
+
+        assertTrue(manager.getSurroundingEpgPrograms(programOnChannel("X", START_MIN, 0)).isEmpty());
+        verify(browser, never()).showWarning(anyString());
+    }
+
+    @Test
+    public void notReadyBeforeFirstLoadAndReadyAfterwards() {
+        assertFalse(manager.isReady());
+        when(connection.getEpgList()).thenReturn(new ArrayList<>());
+        manager.loadEpgList();
+        assertTrue(manager.isReady());
+    }
+
+    @Test
+    public void readyEvenWhenLoadingFails() {
+        when(connection.getEpgList()).thenThrow(new IllegalStateException("boom"));
+        try {
+            manager.loadEpgList();
+            fail();
+        } catch (IllegalStateException expected) {
+        }
+        assertTrue(manager.isReady());
+    }
+
+    @Test
+    public void reloadKeepsOldDataUntilNewDataIsComplete() {
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(epg(1, "ch-uuid", START, "A"))))
+                .thenThrow(new IllegalStateException("boom"));
+        manager.loadEpgList();
+        try {
+            manager.updateEpg();
+        } catch (IllegalStateException expected) {
+        }
+        assertNotNull(manager.getEpgProgram(1));
+    }
+
+    @Test
+    public void nullEpgListIsTreatedAsEmpty() {
+        when(connection.getEpgList()).thenReturn(null);
+        manager.loadEpgList();
+        assertTrue(manager.isReady());
+        assertNull(manager.getEpgProgram(1));
+    }
+
+    @Test
+    public void failedReloadKeepsPreviousData() {
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(epg(1, "ch-uuid", START, "A"))))
+                .thenReturn(null);
+        manager.loadEpgList();
+        manager.updateEpg();
+        assertNotNull(manager.getEpgProgram(1));
+        assertTrue(manager.isReady());
+    }
 }

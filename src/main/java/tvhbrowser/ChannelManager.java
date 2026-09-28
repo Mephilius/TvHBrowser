@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static devplugin.Plugin.getPluginManager;
 
@@ -18,10 +19,10 @@ public class ChannelManager {
     private final TvHBrowser tvhBrowser;
     private final TVHeadendConnection connection;
 
-    private Map<String, String> channelToTVHMap;
-    private Map<String, String> tvhToChannelMap;
-    private Map<String, TVHeadendChannel> tvhChannelMap;
-    private Map<String, devplugin.Channel> tvbChannelMap;
+    private final Map<String, String> channelToTVHMap = new ConcurrentHashMap<>();
+    private final Map<String, String> tvhToChannelMap = new ConcurrentHashMap<>();
+    private volatile Map<String, TVHeadendChannel> tvhChannelMap = new HashMap<>();
+    private volatile Map<String, devplugin.Channel> tvbChannelMap = new HashMap<>();
 
     /**
      * Constructs a ChannelManager object.
@@ -32,24 +33,17 @@ public class ChannelManager {
     public ChannelManager(TvHBrowser tvhBrowser, TVHeadendConnection connection) {
         this.tvhBrowser = tvhBrowser;
         this.connection = connection;
-        this.channelToTVHMap = new HashMap<>();
-        this.tvhToChannelMap = new HashMap<>();
-        this.tvhChannelMap = new HashMap<>();
-        this.tvbChannelMap = new HashMap<>();
     }
 
     /**
      * Retrieves the TVBrowser channels and stores them in the tvbChannelMap.
      */
     public void getTVBrowserChannels() {
-        this.tvbChannelMap.clear();
-        writeLog("Get TVB channels");
-        devplugin.Channel[] channels = getPluginManager().getSubscribedChannels();
-        for (devplugin.Channel channel : channels) {
-            writeLog("Channel: " + channel.getName() + " " + channel.getUniqueId());
-            tvbChannelMap.put(channel.getUniqueId(), channel);
+        Map<String, devplugin.Channel> loaded = new HashMap<>();
+        for (devplugin.Channel channel : getPluginManager().getSubscribedChannels()) {
+            loaded.put(channel.getUniqueId(), channel);
         }
-        writeLog("TVB channels: " + tvbChannelMap.size());
+        this.tvbChannelMap = loaded;
     }
 
     /**
@@ -64,13 +58,16 @@ public class ChannelManager {
      * Retrieves the TVHeadend channels and stores them in the tvhChannelMap.
      */
     public void getTVHeadendChannels() {
-        this.tvhChannelMap.clear();
-
         List<TVHeadendChannel> channels = this.connection.getChannelList();
-        for (TVHeadendChannel channel : channels) {
-            String key = channel.getKey();
-            this.tvhChannelMap.put(key, channel);
+        if (channels == null) {
+            return;
         }
+
+        Map<String, TVHeadendChannel> loaded = new HashMap<>();
+        for (TVHeadendChannel channel : channels) {
+            loaded.put(channel.getKey(), channel);
+        }
+        this.tvhChannelMap = loaded;
     }
 
     /**
@@ -224,7 +221,6 @@ public class ChannelManager {
      * @return               The TVHeadendChannel object.
      */
     public TVHeadendChannel getMappedTvhChannel(String tvbChannelId) {
-        writeLog("Get mapped TVH channel for " + tvbChannelId);
         return tvhChannelMap.get(channelToTVHMap.get(tvbChannelId));
     }
 
@@ -235,7 +231,6 @@ public class ChannelManager {
      * @return             The devplugin.Channel object.
      */
     public devplugin.Channel getMappedTvbChannel(String tvhChannel) {
-        writeLog("Get mapped TVB channel for " + tvhChannel);
         return tvbChannelMap.get(tvhToChannelMap.get(tvhChannel));
     }
 
@@ -262,10 +257,6 @@ public class ChannelManager {
     public void readData(ObjectInputStream in) throws IOException {
         if (tvbChannelMap.size() == 0) {
             this.getTVBrowserChannels();
-        }
-
-        if (tvhChannelMap.size() == 0) {
-            this.getTVHeadendChannels();
         }
 
         String tvbChannelId;

@@ -3,19 +3,13 @@ package tvhbrowser;
 import devplugin.Date;
 import devplugin.Program;
 
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.security.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Timer extends TimerEpgInterface {
     private String uuid;
@@ -663,7 +657,7 @@ public class Timer extends TimerEpgInterface {
 
     @Override
     public String getTitle(String Lang) {
-        return this.title.get(Lang);
+        return this.title == null ? null : this.title.get(Lang);
     }
 
     @Override
@@ -673,7 +667,7 @@ public class Timer extends TimerEpgInterface {
 
     @Override
     public String getSubtitle(String Lang) {
-        return this.subtitle.get(Lang);
+        return this.subtitle == null ? null : this.subtitle.get(Lang);
     }
 
     @Override
@@ -692,7 +686,7 @@ public class Timer extends TimerEpgInterface {
 
     @Override
     public String getExtractedTitle(String Lang) {
-       return this.extractedtitel.get(Lang);
+       return this.extractedtitel == null ? null : this.extractedtitel.get(Lang);
     }
 
     @Override

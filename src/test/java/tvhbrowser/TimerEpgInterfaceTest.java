@@ -167,4 +167,19 @@ public class TimerEpgInterfaceTest {
         assertEquals(2, t.getEpisodeNumber());
         assertEquals(9, t.getEpisodeNumberTotal());
     }
+
+    @Test
+    public void compareWithWiderToleranceAcceptsFifteenMinutes() {
+        Timer t = timer("u", "c", START, "ger", "Tatort");
+        Program p = program("Tatort", START_MIN + 15);
+        assertFalse(t.compare(p));
+        assertTrue(t.compare(p, TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS));
+        assertEquals(15 * 60, t.timeDistanceSeconds(p));
+    }
+
+    @Test
+    public void compareWithWiderToleranceStillNeedsTextMatch() {
+        Timer t = timer("u", "c", START, "ger", "Tatort");
+        assertFalse(t.compare(program("Anderes", START_MIN + 15), TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS));
+    }
 }

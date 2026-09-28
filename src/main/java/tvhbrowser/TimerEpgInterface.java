@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -162,14 +161,21 @@ public abstract class TimerEpgInterface {
         return outputList;
     }
 
-    public Boolean compare(Program program) {
+    public static final long STRICT_TOLERANCE_SECONDS = 300;
+    public static final long FALLBACK_TOLERANCE_SECONDS = 3600;
 
+    public long timeDistanceSeconds(Program program) {
         long secondOfDayStartTimer = getStartDateTime().toLocalTime().toSecondOfDay();
-        // long secondOfDayStartRealTimer =
-        // getStartRealDateTime().toLocalTime().toSecondOfDay();
-        long secondOfDayProgram = program.getStartTime() * 60;
+        long secondOfDayProgram = program.getStartTime() * 60L;
+        return Math.abs(secondOfDayProgram - secondOfDayStartTimer);
+    }
 
-        if (Math.abs(secondOfDayProgram - secondOfDayStartTimer) <= 300) {
+    public Boolean compare(Program program) {
+        return compare(program, STRICT_TOLERANCE_SECONDS);
+    }
+
+    public Boolean compare(Program program, long toleranceSeconds) {
+        if (timeDistanceSeconds(program) <= toleranceSeconds) {
 
             ArrayList<String> timerTextToCompare = getTimerTextToCompare();
             ArrayList<String> programTextToCompare = getProgramTextToCompare(program);

@@ -16,7 +16,16 @@
             "request": "attach",
             "hostName": "localhost",
             "port": 5005,
-            "projectName": "DeinPluginProjektname"
+            "projectName": "TvHBrowser"
+        },
+        {
+            "type": "java",
+            "name": "Start + Attach to TV-Browser",
+            "request": "attach",
+            "hostName": "localhost",
+            "port": 5005,
+            "projectName": "TvHBrowser",
+            "preLaunchTask": "Start TV-Browser (Debug 5005)"
         }
     ]
 }

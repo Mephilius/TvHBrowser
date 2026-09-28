@@ -1,16 +1,21 @@
 package tvhbrowser;
 
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 import static tvhbrowser.TestSupport.browserWithSettings;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,13 +26,18 @@ import com.sun.net.httpserver.HttpServer;
 public class TVHeadendConnectionTest {
 
     private HttpServer server;
+    private TvHBrowser browser;
     private TVHeadendConnection connection;
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private final List<String> authHeaders = new CopyOnWriteArrayList<>();
+    private final List<String> methods = new CopyOnWriteArrayList<>();
+    private final List<String> bodies = new CopyOnWriteArrayList<>();
 
     private void reply(HttpExchange ex, int status, String body) throws IOException {
         requests.add(ex.getRequestURI().toString());
         authHeaders.add(ex.getRequestHeaders().getFirst("Authorization"));
+        methods.add(ex.getRequestMethod());
+        bodies.add(new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         ex.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = ex.getResponseBody()) {
@@ -35,10 +45,16 @@ public class TVHeadendConnectionTest {
         }
     }
 
+    private void respond(String path, int status, String body) {
+        server.removeContext(path);
+        server.createContext(path, ex -> reply(ex, status, body));
+    }
+
     @Before
     public void setUp() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/api/serverinfo", ex -> reply(ex, 200, "{\"version\":\"4.3-test\"}"));
+        server.createContext("/api/serverinfo", ex -> reply(ex, 200,
+                "{\"sw_version\":\"4.3-test\",\"api_version\":20,\"name\":\"Tvheadend\"}"));
         server.createContext("/api/channel/list", ex -> reply(ex, 200,
                 "{\"entries\":[{\"key\":\"k1\",\"val\":\"ARD\"},{\"key\":\"k2\",\"val\":\"ZDF\"}]}"));
         server.createContext("/api/dvr/entry/grid_upcoming", ex -> reply(ex, 200,
@@ -49,17 +65,23 @@ public class TVHeadendConnectionTest {
         server.createContext("/api/dvr/entry/grid", ex -> reply(ex, 200, "{\"entries\":[{\"uuid\":\"u5\"}]}"));
         server.createContext("/api/epg/events/grid", ex -> reply(ex, 200,
                 "{\"entries\":[{\"eventId\":9,\"channelUuid\":\"k1\",\"start\":1000,\"title\":\"Tatort\"}]}"));
-        server.createContext("/api/dvr/entry/create_by_event", ex -> reply(ex, 200, "{}"));
+        server.createContext("/api/dvr/entry/create_by_event",
+                ex -> reply(ex, 200, "{\"uuid\":[\"new-uuid\"]}"));
         server.createContext("/api/dvr/entry/cancel", ex -> reply(ex, 200, "{}"));
         server.createContext("/api/idnode/save", ex -> reply(ex, 200, "{}"));
         server.start();
 
-        connection = new TVHeadendConnection(browserWithSettings("127.0.0.1", server.getAddress().getPort()));
+        browser = browserWithSettings("127.0.0.1", server.getAddress().getPort());
+        connection = new TVHeadendConnection(browser);
     }
 
     @After
     public void tearDown() {
         server.stop(0);
+    }
+
+    private static String nodeOf(String body) {
+        return URLDecoder.decode(body.substring("node=".length()), StandardCharsets.UTF_8);
     }
 
     @Test
@@ -74,6 +96,24 @@ public class TVHeadendConnectionTest {
     }
 
     @Test
+    public void testConnectionAcceptsOlderServerInfoWithVersionField() {
+        respond("/api/serverinfo", 200, "{\"version\":\"4.0\"}");
+        assertTrue(connection.testConnection());
+    }
+
+    @Test
+    public void testConnectionAcceptsServerInfoWithoutAnyVersion() {
+        respond("/api/serverinfo", 200, "{\"name\":\"Tvheadend\"}");
+        assertTrue(connection.testConnection());
+    }
+
+    @Test
+    public void testConnectionFailsOnInvalidJson() {
+        respond("/api/serverinfo", 200, "<html>login</html>");
+        assertFalse(connection.testConnection());
+    }
+
+    @Test
     public void requestsCarryBasicAuthHeader() {
         connection.testConnection();
         String expected = "Basic " + Base64.getEncoder().encodeToString("user:pw".getBytes(StandardCharsets.UTF_8));
@@ -82,8 +122,7 @@ public class TVHeadendConnectionTest {
 
     @Test
     public void testConnectionFailsOnHttpError() {
-        server.removeContext("/api/serverinfo");
-        server.createContext("/api/serverinfo", ex -> reply(ex, 401, "denied"));
+        respond("/api/serverinfo", 401, "denied");
         assertFalse(connection.testConnection());
         assertFalse(connection.isConnected());
     }
@@ -104,6 +143,7 @@ public class TVHeadendConnectionTest {
         assertTrue(timers.get(0).isEnabled());
         assertEquals("Tatort", timers.get(0).getTitle("ger"));
         assertTrue(requests.get(0).contains("limit=2000"));
+        assertEquals("GET", methods.get(0));
     }
 
     @Test
@@ -125,23 +165,94 @@ public class TVHeadendConnectionTest {
     }
 
     @Test
-    public void createTimerUsesEventId() {
-        connection.createTimerWithEvent(123);
-        assertTrue(requests.get(0).startsWith("/api/dvr/entry/create_by_event?event_id=123"));
+    public void emptyEntriesGiveEmptyListNotNull() {
+        respond("/api/channel/list", 200, "{\"entries\":[]}");
+        assertTrue(connection.getChannelList().isEmpty());
     }
 
     @Test
-    public void deleteTimerCallsCancelWithUuid() {
+    public void createTimerPostsEventIdWithEmptyConfigForTheDefault() {
+        assertEquals("new-uuid", connection.createTimerWithEvent(123));
+        assertEquals("POST", methods.get(0));
+        assertEquals("/api/dvr/entry/create_by_event", requests.get(0));
+        assertEquals("event_id=123&config_uuid=", bodies.get(0));
+    }
+
+    @Test
+    public void createTimerPassesConfiguredDvrConfig() {
+        when(browser.getSetting(eq("dvrConfig"), anyString())).thenReturn(" abc def ");
+        connection.createTimerWithEvent(5);
+        assertEquals("event_id=5&config_uuid=abc+def", bodies.get(0));
+    }
+
+    @Test
+    public void createTimerReturnsNullWhenServerRejects() {
+        respond("/api/dvr/entry/create_by_event", 500, "boom");
+        assertNull(connection.createTimerWithEvent(1));
+    }
+
+    @Test
+    public void deleteTimerPostsUuid() {
         connection.deleteTimer("abc");
-        assertEquals("/api/dvr/entry/cancel?uuid=abc", requests.get(0));
+        assertEquals("POST", methods.get(0));
+        assertEquals("/api/dvr/entry/cancel", requests.get(0));
+        assertEquals("uuid=abc", bodies.get(0));
     }
 
     @Test
-    public void enableAndDisableSaveEnabledFlag() {
+    public void uuidIsUrlEncoded() {
+        connection.deleteTimer("a&b=c d");
+        assertEquals("uuid=a%26b%3Dc+d", bodies.get(0));
+    }
+
+    @Test
+    public void enableAndDisableSaveEnabledFlagAsJson() {
         connection.enableTimer("abc");
         connection.disableTimer("abc");
-        assertTrue(requests.get(0).contains("%22enabled%22:true"));
-        assertTrue(requests.get(0).contains("%22uuid%22:%22abc%22"));
-        assertTrue(requests.get(1).contains("%22enabled%22:false"));
+        assertEquals("POST", methods.get(0));
+        assertEquals("/api/idnode/save", requests.get(0));
+        JSONObject enabled = new JSONObject(nodeOf(bodies.get(0)));
+        assertTrue(enabled.getBoolean("enabled"));
+        assertEquals("abc", enabled.getString("uuid"));
+        assertFalse(new JSONObject(nodeOf(bodies.get(1))).getBoolean("enabled"));
+    }
+
+    @Test
+    public void quotesInTimerIdCannotBreakTheJson() {
+        connection.enableTimer("x\",\"enabled\":false,\"y\":\"");
+        JSONObject node = new JSONObject(nodeOf(bodies.get(0)));
+        assertTrue(node.getBoolean("enabled"));
+        assertEquals(2, node.length());
+    }
+
+    @Test
+    public void listRequestsReturnNullOnHttpError() {
+        respond("/api/dvr/entry/grid_upcoming", 500, "boom");
+        assertNull(connection.getUpcomingTimerList());
+    }
+
+    @Test
+    public void listRequestsReturnNullOnInvalidJson() {
+        respond("/api/channel/list", 200, "not json");
+        assertNull(connection.getChannelList());
+    }
+
+    @Test
+    public void unreachableServerGivesNullInsteadOfAnException() {
+        server.stop(0);
+        assertNull(connection.getUpcomingTimerList());
+        assertNull(connection.getUpcomingTimerList());
+        assertFalse(connection.isConnected());
+    }
+
+    @Test
+    public void connectionIsRestoredAfterSuccessfulRequest() {
+        respond("/api/dvr/entry/grid_upcoming", 500, "boom");
+        assertNull(connection.getUpcomingTimerList());
+        assertFalse(connection.isConnected());
+
+        respond("/api/dvr/entry/grid_upcoming", 200, "{\"entries\":[]}");
+        assertNotNull(connection.getUpcomingTimerList());
+        assertTrue(connection.isConnected());
     }
 }

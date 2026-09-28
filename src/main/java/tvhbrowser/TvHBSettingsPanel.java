@@ -9,7 +9,6 @@ import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 
-import tvhbrowser.*;
 import util.ui.ImageUtilities;
 import util.i18n.Localizer;
 
@@ -68,6 +67,7 @@ public class TvHBSettingsPanel implements devplugin.SettingsTab {
     public void saveSettings() {
         // channelPanel.saveSettings();
         generalPanel.saveSettings();
+        tvhBrowser.testTVHConnection();
         // playerPanel.saveSettings();
         // timerPanel.saveSettings();
         // previewPanel.saveSettings();

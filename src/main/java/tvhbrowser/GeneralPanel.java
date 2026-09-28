@@ -2,9 +2,7 @@ package tvhbrowser;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.Properties;
 
-import tvhbrowser.*;
 
 public class GeneralPanel {
     private JPanel panel;
@@ -14,6 +12,7 @@ public class GeneralPanel {
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JCheckBox httpsCheckBox;
+    private JTextField dvrConfigField;
     private TvHBrowser tvhBrowser;
 
     public GeneralPanel(TvHBrowser tvhBrowser) {
@@ -109,6 +108,26 @@ public class GeneralPanel {
         passwordField.setPreferredSize(new Dimension(200, passwordField.getPreferredSize().height));
         settingsPanel.add(passwordField, gbc);
 
+        // DVR configuration
+        gbc.gridx = 0;
+        gbc.gridy++;
+        JLabel dvrConfigLabel = new JLabel("DVR-Konfiguration (UUID):");
+        settingsPanel.add(dvrConfigLabel, gbc);
+
+        gbc.gridx++;
+        dvrConfigField = new JTextField(15);
+        dvrConfigField.setPreferredSize(new Dimension(200, dvrConfigField.getPreferredSize().height));
+        dvrConfigField.setToolTipText("Optional. Leer = Standard-Konfiguration des Tvheadend");
+        settingsPanel.add(dvrConfigField, gbc);
+
+        // Hint about unencrypted connections
+        gbc.gridx = 0;
+        gbc.gridy++;
+        gbc.gridwidth = 2;
+        JLabel httpsHint = new JLabel("Ohne Https werden Benutzername und Passwort unverschlüsselt übertragen.");
+        httpsHint.setForeground(Color.GRAY);
+        settingsPanel.add(httpsHint, gbc);
+
         panel.add(settingsPanel, BorderLayout.NORTH);
     }
 
@@ -120,17 +139,19 @@ public class GeneralPanel {
         fqdnField.setText(tvhBrowser.getSetting("fqdn", "tvheadend.local"));
         portSpinner.setValue(tvhBrowser.getSetting("port", 9981));
         timeoutSpinner.setValue(tvhBrowser.getSetting("timeout", 500));
-        httpsCheckBox.setSelected(tvhBrowser.getSetting("https", "false").equals("true"));
+        httpsCheckBox.setSelected(tvhBrowser.getSetting("https", false));
         usernameField.setText(tvhBrowser.getSetting("username", ""));
         passwordField.setText(tvhBrowser.getSetting("password", ""));
+        dvrConfigField.setText(tvhBrowser.getSetting("dvrConfig", ""));
     }
 
     public void saveSettings() {
         tvhBrowser.setSetting("fqdn", fqdnField.getText());
         tvhBrowser.setSetting("port", (int) portSpinner.getValue());
         tvhBrowser.setSetting("timeout", (int) timeoutSpinner.getValue());
-        tvhBrowser.setSetting("https", httpsCheckBox.isSelected() ? "true" : "false");
+        tvhBrowser.setSetting("https", httpsCheckBox.isSelected());
         tvhBrowser.setSetting("username", usernameField.getText());
         tvhBrowser.setSetting("password", new String(passwordField.getPassword()));
+        tvhBrowser.setSetting("dvrConfig", dvrConfigField.getText().trim());
     }
 }

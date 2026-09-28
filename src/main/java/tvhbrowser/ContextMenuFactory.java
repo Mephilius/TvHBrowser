@@ -94,71 +94,19 @@ public class ContextMenuFactory {
             }
         }
 
-        // TVHEadend settings menu.
-        AbstractAction setting = new AbstractAction() {
-
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                timerManager.deleteTimer(program);
-            }
-        };
-        setting.putValue(Action.NAME, "Settings");
-        setting.putValue(Action.SMALL_ICON,
-                new ImageIcon(ImageUtilities.createImageFromJar("tvheadend.png", TvHBrowser.class)));
-
         if (marked && !isOnAir) {
             actions = new ActionMenu[] {
                 new ActionMenu(record),
-                new ActionMenu(enable),
-                new ActionMenu(setting)
+                new ActionMenu(enable)
             };
         } else {
             actions = new ActionMenu[] {
-                new ActionMenu(record),
-                new ActionMenu(setting)
+                new ActionMenu(record)
             };
         }
 
-        // menu.
-
-        // menu.putValue(Action.NAME, "Settings");
-        // menu.putValue(Action.SMALL_ICON, tvhBrowser.createImageIcon("actions",
-        // "tvheadend.png", 16));
-
         return new ActionMenu("Tvheadend",
                 new ImageIcon(ImageUtilities.createImageFromJar("tvheadend.png", TvHBrowser.class)), actions);
-
-    }
-
-    public ActionMenu createChannelActionMenu(final devplugin.Channel chan) {
-        final TVHeadendChannel tvHeadendChannel = this.channelManager.getMappedTvhChannel(chan.getUniqueId());
-
-        ActionMenu[] actions = new ActionMenu[2];
-        AbstractAction record = new AbstractAction() {
-
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'actionPerformed'");
-            }
-        };
-
-        AbstractAction setting = new AbstractAction() {
-
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                // TODO Auto-generated method stub
-                throw new UnsupportedOperationException("Unimplemented method 'actionPerformed'");
-            }
-        };
-
-        record.putValue(Action.NAME, "Aufnehmen");
-        record.putValue(Action.SMALL_ICON,
-                new ImageIcon(ImageUtilities.createImageFromJar("tvheadend.png", TvHBrowser.class)));
-        actions[0] = new ActionMenu(record);
-        actions[1] = new ActionMenu(setting);
-
-        return new ActionMenu("Tvheadend", actions);
 
     }
 

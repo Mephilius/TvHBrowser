@@ -1,0 +1,32 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build + Deploy Plugin",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/.vscode/deploy-plugin.ps1"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "Start TV-Browser (Debug 5005)",
+            "type": "shell",
+            "command": "pwsh",
+            "args": [
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/.vscode/start-tvbrowser-debug.ps1"
+            ],
+            "dependsOn": "Build + Deploy Plugin",
+            "problemMatcher": []
+        }
+    ]
+}

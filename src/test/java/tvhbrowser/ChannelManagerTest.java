@@ -154,4 +154,24 @@ public class ChannelManagerTest {
         assertSame(ard, fresh.getTVBChannelbyTVHChannelKey("k-ard"));
         assertSame(zdf, fresh.getTVBChannelbyTVHChannelKey("k-zdf"));
     }
+
+    @Test
+    public void failedTvhChannelLoadKeepsPreviousChannels() {
+        manager.importChannelLists();
+        when(connection.getChannelList()).thenReturn(null);
+        manager.getTVHeadendChannels();
+        assertNotNull(manager.getTVHChannelbyKey("k-ard"));
+    }
+
+    @Test
+    public void readDataDoesNotContactTvheadend() throws Exception {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        try (ObjectOutputStream out = new ObjectOutputStream(bytes)) {
+            manager.writeData(out);
+        }
+        try (ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+            manager.readData(in);
+        }
+        verify(connection, never()).getChannelList();
+    }
 }

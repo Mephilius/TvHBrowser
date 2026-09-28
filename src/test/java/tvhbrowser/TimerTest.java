@@ -88,4 +88,12 @@ public class TimerTest {
         assertEquals("Tatort", t.getTitle("ger"));
         assertEquals("Folge", t.getSubtitle("ger"));
     }
+
+    @Test
+    public void accessorsAreNullSafeWithoutMaps() {
+        Timer t = new Timer();
+        assertNull(t.getTitle("ger"));
+        assertNull(t.getSubtitle("ger"));
+        assertNull(t.getExtractedTitle("ger"));
+    }
 }

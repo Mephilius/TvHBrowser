@@ -1,28 +1,37 @@
 package tvhbrowser;
 
-import javax.json.JsonObject;
-import javax.json.stream.JsonParser;
-import javax.swing.*;
-import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.ArrayList;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
+import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 
 public class TVHeadendConnection {
+    private static final int READ_TIMEOUT_MS = 30_000;
+    private static final int EPG_READ_TIMEOUT_MS = 180_000;
+
     private final TvHBrowser tvhBrowser;
-    private boolean connected;
+    private volatile boolean connected;
+    private volatile boolean failureReported;
 
     public TVHeadendConnection(TvHBrowser tvhBrowser) {
         this.tvhBrowser = tvhBrowser;
@@ -33,247 +42,84 @@ public class TVHeadendConnection {
     }
 
     public boolean testConnection() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/serverinfo";
+        String urlString = baseUrl() + "/api/serverinfo";
+        warnIfCredentialsAreNotEncrypted();
 
         try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
-
-            String authString = username + ":" + password;
-            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-
-                JSONObject jsonObject = new JSONObject(response.toString());
-                String version = jsonObject.getString("version");
-                tvhBrowser.writeLog("Connected to TVHeadend version " + version);
-                connected = true;
-                return true;
-            } else {
-                tvhBrowser.writeLog("Calling " + urlString + " - HTTP error " + responseCode);
-                // showError("Calling " + urlString + " - HTTP error " + responseCode);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
-        } catch (JSONException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
+            String response = send("GET", urlString, null, READ_TIMEOUT_MS);
+            JSONObject info = new JSONObject(response);
+            String version = info.optString("sw_version", info.optString("version", "unknown"));
+            tvhBrowser.writeLog("Connected to TVHeadend version " + version);
+            connected = true;
+            failureReported = false;
+            return true;
+        } catch (IOException | JSONException e) {
+            tvhBrowser.writeLog("Connection test failed: " + urlString + ": " + e);
+            showError(urlString + ": " + e);
         }
 
         connected = false;
         return false;
     }
 
-    private JSONArray makeHttpRequest(String urlString, String username, String password, int timeout) {
-        JSONArray entries = new JSONArray();
-
-        try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
-
-            String authString = username + ":" + password;
-            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
-
-            int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-
-                if (response.length() > 0) {
-                    JSONObject jsonObject = new JSONObject(response.toString());
-                    entries = jsonObject.getJSONArray("entries");
-                }
-            } else {
-                showError("Calling " + urlString + " - HTTP error " + responseCode);
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
-        } catch (JSONException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
-        }
-
-        tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + entries.length() + " entries");
-        return entries;
-    }
-
     public List<TVHeadendChannel> getChannelList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/channel/list";
-
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
-
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<TVHeadendChannel>>() {
-        }.getType();
-        List<TVHeadendChannel> Channels = gson.fromJson(response.toString(), type);
-
-        return Channels;
+        return fetchList("/api/channel/list", new TypeToken<List<TVHeadendChannel>>() {
+        }.getType(), READ_TIMEOUT_MS);
     }
 
     public List<Timer> getUpcomingTimerList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/grid_upcoming?limit=2000";
-
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
-
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<Timer>>() {
-        }.getType();
-        List<Timer> timers = gson.fromJson(response.toString(), type);
-
-        return timers;
+        return fetchList("/api/dvr/entry/grid_upcoming?limit=2000", timerListType(), READ_TIMEOUT_MS);
     }
 
     public List<Timer> getAllTimerList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/grid";
-
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
-
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<Timer>>() {
-        }.getType();
-        List<Timer> timers = gson.fromJson(response.toString(), type);
-
-        return timers;
+        return fetchList("/api/dvr/entry/grid", timerListType(), READ_TIMEOUT_MS);
     }
 
     public List<Timer> getFinishedTimerList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/grid_finished?limit=2000";
-
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
-
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<Timer>>() {
-        }.getType();
-        List<Timer> timers = gson.fromJson(response.toString(), type);
-
-        return timers;
+        return fetchList("/api/dvr/entry/grid_finished?limit=2000", timerListType(), READ_TIMEOUT_MS);
     }
 
     public List<Timer> getFailedTimerList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
+        return fetchList("/api/dvr/entry/grid_failed?limit=2000", timerListType(), READ_TIMEOUT_MS);
+    }
 
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/grid_failed?limit=2000";
+    public List<EpgProgram> getEpgList() {
+        return fetchList("/api/epg/events/grid?limit=50000", new TypeToken<List<EpgProgram>>() {
+        }.getType(), EPG_READ_TIMEOUT_MS);
+    }
 
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
-
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<Timer>>() {
+    private static Type timerListType() {
+        return new TypeToken<List<Timer>>() {
         }.getType();
-        List<Timer> timers = gson.fromJson(response.toString(), type);
-
-        return timers;
-    }
-
-
-    public void createTimerWithEvent(Integer eventId) {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/create_by_event?event_id=" + eventId + "&config_uuid=c8bcf2c90db93380f1861773d92b8e8f";
-
-        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
-        if (response != null) {
-            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
-        }
     }
 
     /**
-     * @param timerId
+     * @return the id of the new timer or null if it could not be created
      */
+    public String createTimerWithEvent(Integer eventId) {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("event_id", String.valueOf(eventId));
+        // Tvheadend rejects the request without this parameter, an empty value selects the default configuration
+        params.put("config_uuid", tvhBrowser.getSetting("dvrConfig", "").trim());
+
+        String response = post("/api/dvr/entry/create_by_event", params);
+        if (response == null) {
+            return null;
+        }
+        try {
+            JSONArray uuids = new JSONObject(response).optJSONArray("uuid");
+            return uuids != null && uuids.length() > 0 ? uuids.getString(0) : null;
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     public void deleteTimer(String timerId) {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
-
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/dvr/entry/cancel?uuid=" +  timerId;
-
-        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
-        if (response != null) {
-            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
-        }
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("uuid", timerId);
+        post("/api/dvr/entry/cancel", params);
     }
 
-    /**
-     * @param timerId
-     */
     public void disableTimer(String timerId) {
         setTimerEnabled(timerId, false);
     }
@@ -283,76 +129,127 @@ public class TVHeadendConnection {
     }
 
     private void setTimerEnabled(String timerId, boolean enabled) {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
+        JSONObject node = new JSONObject();
+        node.put("enabled", enabled);
+        node.put("uuid", timerId);
 
-        String protocol = useHttps ? "https://" : "http://";
-        String enabledValue = enabled ? "true" : "false";
-        String urlString = protocol + fqdn + ":" + port
-                + "/api/idnode/save?node=%7B%22enabled%22:" + enabledValue + ",%22uuid%22:%22" + timerId + "%22%7D";
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("node", node.toString());
+        post("/api/idnode/save", params);
+    }
 
-        String response = makeAuthenticatedGetRequest(urlString, username, password, timeout);
-        if (response != null) {
-            tvhBrowser.writeLog("HTTP request to " + urlString + " returned " + response);
+    private <T> List<T> fetchList(String path, Type type, int readTimeoutMs) {
+        String urlString = baseUrl() + path;
+        try {
+            String response = send("GET", urlString, null, readTimeoutMs);
+            List<T> result = response.isEmpty() ? null
+                    : new Gson().fromJson(new JSONObject(response).getJSONArray("entries").toString(), type);
+            noteSuccess();
+            return result == null ? new java.util.ArrayList<>() : result;
+        } catch (IOException | JSONException | JsonParseException e) {
+            noteFailure(urlString + ": " + e);
+            return null;
         }
     }
 
-    private String makeAuthenticatedGetRequest(String urlString, String username, String password, int timeout) {
+    private String post(String path, Map<String, String> params) {
+        String urlString = baseUrl() + path;
         try {
-            URL url = new URL(urlString);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("GET");
-            connection.setConnectTimeout(timeout);
+            String response = send("POST", urlString, encodeForm(params), READ_TIMEOUT_MS);
+            tvhBrowser.writeLog("HTTP POST " + path + " " + params.keySet() + " returned " + response);
+            return response;
+        } catch (IOException e) {
+            tvhBrowser.writeLog("HTTP POST " + urlString + " failed: " + e);
+            showError(urlString + ": " + e);
+            return null;
+        }
+    }
 
-            String authString = username + ":" + password;
-            String encodedAuthString = Base64.getEncoder().encodeToString(authString.getBytes());
-            connection.setRequestProperty("Authorization", "Basic " + encodedAuthString);
+    private String send(String method, String urlString, String body, int readTimeoutMs) throws IOException {
+        URL url;
+        try {
+            url = java.net.URI.create(urlString).toURL();
+        } catch (IllegalArgumentException e) {
+            throw new IOException("Invalid URL: " + urlString, e);
+        }
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        try {
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(tvhBrowser.getSetting("timeout", 500));
+            connection.setReadTimeout(readTimeoutMs);
+            connection.setRequestProperty("Authorization", authHeader());
+
+            if (body != null) {
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                connection.setDoOutput(true);
+                connection.setFixedLengthStreamingMode(bytes.length);
+                connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                try (OutputStream out = connection.getOutputStream()) {
+                    out.write(bytes);
+                }
+            }
 
             int responseCode = connection.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), "UTF-8"));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
-                }
-
-                reader.close();
-                return response.toString();
-            } else {
-                showError("Calling " + urlString + " - HTTP error " + responseCode);
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IOException("HTTP error " + responseCode);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-            showError(urlString + ": " + e.toString());
+            try (InputStream in = connection.getInputStream()) {
+                ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+                byte[] chunk = new byte[8192];
+                int read;
+                while ((read = in.read(chunk)) != -1) {
+                    buffer.write(chunk, 0, read);
+                }
+                return buffer.toString(StandardCharsets.UTF_8);
+            }
+        } finally {
+            connection.disconnect();
         }
-
-        return null;
     }
 
-    public List<EpgProgram> getEpgList() {
-        String fqdn = tvhBrowser.getSetting("fqdn", "tvheadend.local");
-        int port = tvhBrowser.getSetting("port", 9981);
-        int timeout = tvhBrowser.getSetting("timeout", 500);
-        String username = tvhBrowser.getSetting("username", "");
-        String password = tvhBrowser.getSetting("password", "");
-        boolean useHttps = tvhBrowser.getSetting("https", false);
+    private static String encodeForm(Map<String, String> params) {
+        StringBuilder form = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (form.length() > 0) {
+                form.append('&');
+            }
+            form.append(URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8)).append('=')
+                    .append(URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+        }
+        return form.toString();
+    }
 
-        String protocol = useHttps ? "https://" : "http://";
-        String urlString = protocol + fqdn + ":" + port + "/api/epg/events/grid?limit=50000";
+    private String baseUrl() {
+        String protocol = tvhBrowser.getSetting("https", false) ? "https://" : "http://";
+        return protocol + tvhBrowser.getSetting("fqdn", "tvheadend.local") + ":" + tvhBrowser.getSetting("port", 9981);
+    }
 
-        JSONArray response = makeHttpRequest(urlString, username, password, timeout);
+    private String authHeader() {
+        String credentials = tvhBrowser.getSetting("username", "") + ":" + tvhBrowser.getSetting("password", "");
+        return "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+    }
 
-        Gson gson = new Gson();
-        Type type = new TypeToken<List<EpgProgram>>() {
-        }.getType();
-        List<EpgProgram> programs = gson.fromJson(response.toString(), type);
+    private void warnIfCredentialsAreNotEncrypted() {
+        if (!tvhBrowser.getSetting("https", false) && !tvhBrowser.getSetting("password", "").isEmpty()) {
+            tvhBrowser.writeLog("WARNING: credentials are sent unencrypted, enable https in the settings");
+        }
+    }
 
-        return programs;
+    private void noteSuccess() {
+        connected = true;
+        if (failureReported) {
+            failureReported = false;
+            tvhBrowser.writeLog("Connection to Tvheadend restored");
+        }
+    }
+
+    private void noteFailure(String message) {
+        connected = false;
+        tvhBrowser.writeLog("Request failed: " + message);
+        if (!failureReported) {
+            failureReported = true;
+            showError(message);
+        }
     }
 
     private void showError(String errorCode) {
