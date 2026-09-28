@@ -21,11 +21,14 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static devplugin.Plugin.getPluginManager;
 import devplugin.Date;
+import devplugin.Marker;
 
 public class TimerManager {
   private TvHBrowser tvhbrowser;
@@ -202,6 +205,94 @@ public class TimerManager {
   public void updateTimer() {
     this.loadTimer();
     this.mapTimerToProgram();
+    this.tvhbrowser.refreshProgramTree();
+  }
+
+  public List<Program> getUpcomingTimerPrograms() {
+    List<Timer> sortedTimers = new ArrayList<>(timerMap.values());
+    sortedTimers.sort(Comparator.comparing(Timer::getDate));
+
+    Set<Program> programs = new LinkedHashSet<>();
+    for (Timer timer : sortedTimers) {
+      String programId = timerToProgramMap.get(timer.getUuid());
+      if (programId == null) {
+        continue;
+      }
+
+      Program program = getPluginManager().getProgram(programId);
+      if (program != null && program.getProgramState() != Program.STATE_WAS_DELETED) {
+        programs.add(program);
+      }
+    }
+
+    if (programs.isEmpty() && !timerMap.isEmpty()) {
+      Date today = Date.getCurrentDate();
+      Program[] markedPrograms = getPluginManager().getMarkedPrograms();
+      for (Program markedProgram : markedPrograms) {
+        if (markedProgram == null || markedProgram.getProgramState() == Program.STATE_WAS_DELETED) {
+          continue;
+        }
+        if (!isMarkedByThisPlugin(markedProgram)) {
+          continue;
+        }
+        if (markedProgram.getDate().compareTo(today) < 0) {
+          continue;
+        }
+        programs.add(markedProgram);
+      }
+    }
+
+    List<Program> sortedPrograms = new ArrayList<>(programs);
+    sortedPrograms.sort(
+        Comparator.comparing(Program::getDate)
+            .thenComparingInt(Program::getStartTime));
+
+    return sortedPrograms;
+  }
+
+  public List<Timer> getUpcomingTimers() {
+    List<Timer> sortedTimers = new ArrayList<>(timerMap.values());
+    sortedTimers.sort(
+        Comparator.comparing(Timer::getDate)
+            .thenComparing(Timer::getStartDateTime));
+    return sortedTimers;
+  }
+
+  public List<Timer> getFinishedTimers() {
+    List<Timer> timers = connection.getFinishedTimerList();
+    if (timers == null) {
+      return new ArrayList<>();
+    }
+    timers.sort(
+        Comparator.comparing(Timer::getDate)
+            .thenComparing(Timer::getStartDateTime)
+            .reversed());
+    return timers;
+  }
+
+  public Program getProgramForTimer(String timerId) {
+    String programId = timerToProgramMap.get(timerId);
+    if (programId == null) {
+      return null;
+    }
+
+    Program program = getPluginManager().getProgram(programId);
+    if (program == null || program.getProgramState() == Program.STATE_WAS_DELETED) {
+      return null;
+    }
+
+    return program;
+  }
+
+  private boolean isMarkedByThisPlugin(Program program) {
+    Marker[] markers = program.getMarkerArr();
+    for (Marker marker : markers) {
+      if (marker == this.tvhbrowser) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   public void createTimer(Program program) {
@@ -280,20 +371,14 @@ public class TimerManager {
 
   public void handleTvDataUpdateFinished() {
 
-    Map<String, String> oldList = timerToProgramMap;
+    Map<String, String> oldList = new HashMap<>(timerToProgramMap);
     timerToProgramMap.clear();
 
     for (Map.Entry<String, String> map : oldList.entrySet()) {
       String timerId = map.getKey();
       String programId = map.getValue();
       Program program = getPluginManager().getProgram(programId);
-      if (program == null || program.getProgramState() == Program.STATE_WAS_DELETED) {
-
-      } else if (program.getProgramState() == Program.STATE_WAS_UPDATED) {
-
-        timerToProgramMap.put(timerId, programId);
-      } else {
-
+      if (program != null && program.getProgramState() != Program.STATE_WAS_DELETED) {
         timerToProgramMap.put(timerId, programId);
       }
     }
