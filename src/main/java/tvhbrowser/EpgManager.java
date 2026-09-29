@@ -101,34 +101,27 @@ public class EpgManager {
         }
 
         List<EpgProgram> events = eventsOf(program, true);
-        if (events == null) {
-            return null;
-        }
-
-        for (EpgProgram epgProgram : events) {
-            if (epgProgram.compare(program)) {
-                return epgProgram;
-            }
-        }
-
-        return null;
+        return bestMatch(events, program, TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
     }
 
     public EpgProgram getSimilarEpgProgram(Program program) {
         List<EpgProgram> events = eventsOf(program, false);
+        return bestMatch(events, program, TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS);
+    }
+
+    /** Picks the best-scoring candidate instead of the first one that matches. */
+    private EpgProgram bestMatch(List<EpgProgram> events, Program program, long toleranceSeconds) {
         if (events == null) {
             return null;
         }
 
         EpgProgram best = null;
-        long bestDistance = Long.MAX_VALUE;
+        long bestScore = TimerEpgInterface.NO_MATCH;
         for (EpgProgram candidate : events) {
-            if (candidate.compare(program, TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS)) {
-                long distance = candidate.timeDistanceSeconds(program);
-                if (distance < bestDistance) {
-                    best = candidate;
-                    bestDistance = distance;
-                }
+            long score = candidate.matchScore(program, toleranceSeconds);
+            if (score > bestScore) {
+                best = candidate;
+                bestScore = score;
             }
         }
         return best;

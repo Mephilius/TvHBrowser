@@ -54,7 +54,7 @@ public class TimerEpgInterfaceTest {
         t.setSubtitle(map("ger", "Folge"));
         t.extractEpisodeInfo();
         List<String> texts = t.getTimerTextToCompare();
-        assertEquals(new HashSet<>(List.of("serie (3/12)", "folge", "serie (3/12) folge", "serie folge")),
+        assertEquals(new HashSet<>(List.of("serie 3 12", "folge", "serie 3 12 folge", "serie folge")),
                 new HashSet<>(texts));
     }
 
@@ -181,5 +181,74 @@ public class TimerEpgInterfaceTest {
     public void compareWithWiderToleranceStillNeedsTextMatch() {
         Timer t = timer("u", "c", START, "ger", "Tatort");
         assertFalse(t.compare(program("Anderes", START_MIN + 15), TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS));
+    }
+
+    @Test
+    public void comparePrefixMatchRespectsWordBoundary() {
+        Timer t = timer("u", "c", START, "ger", "Sport");
+        assertFalse(t.compare(program("Sportschau", START_MIN)));
+    }
+
+    @Test
+    public void comparePrefixMatchAcceptsSuffixStartingNewWord() {
+        Timer t = timer("u", "c", START, "ger", "Sport");
+        assertTrue(t.compare(program("Sport im Ersten", START_MIN)));
+    }
+
+    @Test
+    public void compareIgnoresPunctuationDifferences() {
+        Timer t = timer("u", "c", START, "ger", "Stuttgart 21 - Die Jahrhundertbaustelle");
+        assertTrue(t.compare(program("Stuttgart 21: Die Jahrhundertbaustelle", START_MIN)));
+    }
+
+    @Test
+    public void compareIgnoresGermanQuotationMarks() {
+        Timer t = timer("u", "c", START, "ger", "„Tatort“");
+        assertTrue(t.compare(program("Tatort", START_MIN)));
+    }
+
+    @Test
+    public void veryShortTitlesDoNotMatchAsPrefix() {
+        Timer t = timer("u", "c", START, "ger", "Ab");
+        assertFalse(t.compare(program("Abenteuer", START_MIN)));
+    }
+
+    @Test
+    public void matchScorePrefersExactOverPrefixMatch() {
+        Timer t = timer("u", "c", START, "ger", "Tatort");
+        long exact = t.matchScore(program("Tatort", START_MIN), TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+        long prefix = t.matchScore(program("Tatort: Der Fall", START_MIN), TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+        assertTrue(exact > prefix);
+    }
+
+    @Test
+    public void matchScorePrefersCloserPrefixLengthOverFartherOne() {
+        Timer t = timer("u", "c", START, "ger", "Tatort");
+        long closer = t.matchScore(program("Tatort Spezial", START_MIN), TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+        long farther = t.matchScore(program("Tatort Spezial Extralang", START_MIN),
+                TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+        assertTrue(closer > farther);
+    }
+
+    @Test
+    public void matchScoreConfirmedByEpisodeNumberOutranksTextOnlyMatch() {
+        Timer t = timer("u", "c", START, "ger", "Serie (3/12)");
+        t.extractEpisodeInfo();
+
+        Program withEpisode = program("Serie", START_MIN);
+        when(withEpisode.getIntField(ProgramFieldType.EPISODE_NUMBER_TYPE)).thenReturn(3);
+        long confirmed = t.matchScore(withEpisode, TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+
+        Program exactTitleNoEpisode = program("Serie", START_MIN);
+        long unconfirmed = t.matchScore(exactTitleNoEpisode, TimerEpgInterface.STRICT_TOLERANCE_SECONDS);
+
+        assertTrue(confirmed > unconfirmed);
+    }
+
+    @Test
+    public void matchScoreReturnsNoMatchSentinelOutsideTolerance() {
+        Timer t = timer("u", "c", START, "ger", "Tatort");
+        assertEquals(TimerEpgInterface.NO_MATCH,
+                t.matchScore(program("Tatort", START_MIN + 10), TimerEpgInterface.STRICT_TOLERANCE_SECONDS));
     }
 }

@@ -243,28 +243,42 @@ public class TimerManager {
       return;
     }
 
-    Program fallback = null;
-    long fallbackDistance = Long.MAX_VALUE;
+    // Pick the best-scoring candidate instead of the first one that matches, and prefer a
+    // match within the strict time window over a wider, fallback one even if its text score
+    // happens to be lower.
+    Program bestStrict = null;
+    long bestStrictScore = TimerEpgInterface.NO_MATCH;
+    Program bestFallback = null;
+    long bestFallbackScore = TimerEpgInterface.NO_MATCH;
 
     while (programsOfOneDay.hasNext()) {
       Program program = programsOfOneDay.next();
-
-      if (timer.compare(program)) {
-        mapTo(timerId, program);
-        tvhbrowser.writeLog(program.getTitle() + " matched ");
-        return;
+      long score = timer.matchScore(program, TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS);
+      if (score == TimerEpgInterface.NO_MATCH) {
+        continue;
       }
 
-      if (timer.compare(program, TimerEpgInterface.FALLBACK_TOLERANCE_SECONDS)
-          && timer.timeDistanceSeconds(program) < fallbackDistance) {
-        fallback = program;
-        fallbackDistance = timer.timeDistanceSeconds(program);
+      if (score > bestFallbackScore) {
+        bestFallback = program;
+        bestFallbackScore = score;
+      }
+      if (timer.timeDistanceSeconds(program) <= TimerEpgInterface.STRICT_TOLERANCE_SECONDS
+          && score > bestStrictScore) {
+        bestStrict = program;
+        bestStrictScore = score;
       }
     }
 
-    if (fallback != null) {
-      mapTo(timerId, fallback);
-      tvhbrowser.writeLog(fallback.getTitle() + " matched with time offset of " + fallbackDistance / 60 + " min");
+    if (bestStrict != null) {
+      mapTo(timerId, bestStrict);
+      tvhbrowser.writeLog(bestStrict.getTitle() + " matched ");
+      return;
+    }
+
+    if (bestFallback != null) {
+      long distance = timer.timeDistanceSeconds(bestFallback);
+      mapTo(timerId, bestFallback);
+      tvhbrowser.writeLog(bestFallback.getTitle() + " matched with time offset of " + distance / 60 + " min");
       return;
     }
 

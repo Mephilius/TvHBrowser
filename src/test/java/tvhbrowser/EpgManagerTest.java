@@ -228,4 +228,14 @@ public class EpgManagerTest {
         assertNotNull(manager.getEpgProgram(1));
         assertTrue(manager.isReady());
     }
+
+    @Test
+    public void getEpgProgramPicksBestScoringCandidateNotFirstMatchingOne() {
+        EpgProgram prefixMatch = epg(1, "ch-uuid", START, "Tatort: Der Fall");
+        EpgProgram exactMatch = epg(2, "ch-uuid", START, "Tatort");
+        when(connection.getEpgList()).thenReturn(new ArrayList<>(List.of(prefixMatch, exactMatch)));
+        manager.loadEpgList();
+
+        assertSame(exactMatch, manager.getEpgProgram(programOnChannel("Tatort", START_MIN, 0)));
+    }
 }

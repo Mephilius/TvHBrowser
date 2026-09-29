@@ -625,4 +625,31 @@ public class TimerManagerTest {
     public void shutdownWithoutOwnedExecutorIsSafe() {
         manager.shutdown();
     }
+
+    @Test
+    public void picksBestScoringCandidateNotFirstMatchingOne() {
+        Timer t = timer("a", "ch1", START, "ger", "Tatort");
+        when(connection.getUpcomingTimerList()).thenReturn(new ArrayList<>(List.of(t)));
+        manager.loadTimer();
+
+        Channel channel = mock(Channel.class);
+        when(channels.getTVBChannelbyTVHChannelKey("ch1")).thenReturn(channel);
+
+        Program prefixMatch = programWithState("prog-prefix", Program.STATE_IS_VALID);
+        when(prefixMatch.getTitle()).thenReturn("Tatort: Der Fall");
+        when(prefixMatch.getStartTime()).thenReturn(START_MIN);
+
+        Program exactMatch = programWithState("prog-exact", Program.STATE_IS_VALID);
+        when(exactMatch.getTitle()).thenReturn("Tatort");
+        when(exactMatch.getStartTime()).thenReturn(START_MIN);
+
+        // the prefix match is returned first by the iterator, but the exact match should win
+        when(pm.getChannelDayProgram(any(Date.class), eq(channel)))
+                .thenAnswer(i -> List.of(prefixMatch, exactMatch).iterator());
+
+        manager.mapTimerToProgram();
+
+        assertSame(exactMatch, manager.getProgramForTimer("a"));
+        verify(browser, never()).markProgram(prefixMatch);
+    }
 }

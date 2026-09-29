@@ -2,11 +2,7 @@
  * The `TvHBrowser` class is a plugin that exports program schedules from TV-Browser to Tvheadend.
  * It provides functionality for configuring settings, managing timers, and interacting with Tvheadend.
  *
- * This plugin is developed by Markus Muerling (mephilius@muerling.de) and is licensed under AGPL-3.0.
- * For more information, visit the project website: https://muerling.de/TvHBrowser
- *
- * @author Markus Muerling
- * @copyright 2024
+ * Licensed under AGPL-3.0.
  */
 
 package tvhbrowser;
@@ -39,9 +35,9 @@ public final class TvHBrowser extends Plugin {
     private final static PluginInfo INFO = new PluginInfo(TvHBrowser.class,
             "TVHBrowser",
             "Exports program schedules from TV-Browser to Tvheadend",
-            "Markus Muerling (mephilius@muerling.de)",
+            "",
             "AGPL-3.0",
-            "https://muerling.de/TvHBrowser");
+            "");
 
     private static final long MAX_LOG_BYTES = 5L * 1024 * 1024;
     private static final java.nio.file.Path LOG_FILE = Paths.get(System.getProperty("java.io.tmpdir"),
