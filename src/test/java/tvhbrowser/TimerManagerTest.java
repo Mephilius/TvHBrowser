@@ -15,6 +15,7 @@ import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
 
 import devplugin.Channel;
@@ -432,7 +433,12 @@ public class TimerManagerTest {
 
         manager.createTimer(p);
 
-        verify(browser).showInfo(contains("geladen"));
+        // don't assert on the exact (locale-dependent) text, only that a real, translated
+        // message was shown rather than a missing-resource placeholder or nothing at all
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(browser).showInfo(message.capture());
+        assertFalse(message.getValue().startsWith("[TvHBrowser."));
+        assertFalse(message.getValue().isBlank());
         verify(epg, never()).getEpgProgram(any(Program.class));
         verify(connection, never()).createTimerWithEvent(any());
     }
